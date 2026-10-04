@@ -1,0 +1,230 @@
+import { UseCase } from '../common/UseCase';
+import {
+  CartDTO,
+  CartItemDTO,
+  CartModifierInput,
+  BillDTO,
+  CheckoutCompletedEvent,
+  OrderDTO,
+  OrderEvent,
+  OrderStatus,
+  PaymentDTO,
+  PaymentMethod,
+  ServiceCallDTO,
+  ServiceCallEvent,
+  ServiceCallStatus,
+} from './dtos';
+
+export interface CartRepository {
+  get(tenantId: string, sessionId: string, ttlSeconds: number): Promise<CartDTO>;
+  upsertItem(tenantId: string, sessionId: string, item: CartItemDTO, ttlSeconds: number): Promise<CartDTO>;
+  setQuantity(tenantId: string, sessionId: string, cartItemId: string, quantity: number, ttlSeconds: number): Promise<CartDTO>;
+  removeItem(tenantId: string, sessionId: string, cartItemId: string, ttlSeconds: number): Promise<CartDTO>;
+  clear(tenantId: string, sessionId: string): Promise<void>;
+}
+
+export interface OrderRepository {
+  save(tenantId: string, order: OrderDTO): Promise<OrderDTO>;
+  findById(tenantId: string, id: string): Promise<OrderDTO | null>;
+  listByTenant(tenantId: string, filter?: { status?: OrderStatus; tableId?: string }): Promise<OrderDTO[]>;
+  listBySession(tenantId: string, sessionId: string): Promise<OrderDTO[]>;
+  cancel(tenantId: string, id: string, cancelledAt: Date): Promise<OrderDTO>;
+  updateStatus(tenantId: string, id: string, status: OrderStatus, updatedAt: Date): Promise<OrderDTO>;
+}
+
+export interface EventPublisher {
+  publishOrderEvent(tenantId: string, event: OrderEvent): Promise<void>;
+  publishServiceCallEvent(tenantId: string, event: ServiceCallEvent): Promise<void>;
+  publishCheckoutCompleted(tenantId: string, event: CheckoutCompletedEvent): Promise<void>;
+}
+
+export interface EventSubscriber {
+  onOrderEvent(handler: (event: OrderEvent) => void): void;
+  onServiceCallEvent(handler: (event: ServiceCallEvent) => void): void;
+  start(): Promise<void>;
+  stop(): Promise<void>;
+}
+
+export interface RealtimeEmitter {
+  emitToTenant(tenantId: string, event: string, payload: unknown): void;
+  emitToSession(sessionId: string, event: string, payload: unknown): void;
+}
+
+export interface ServiceCallRepository {
+  save(tenantId: string, call: ServiceCallDTO, ttlSeconds: number): Promise<ServiceCallDTO>;
+  findById(tenantId: string, callId: string): Promise<ServiceCallDTO | null>;
+  listByTenant(tenantId: string, filter?: { status?: ServiceCallStatus }): Promise<ServiceCallDTO[]>;
+  resolve(tenantId: string, callId: string, resolvedAt: Date): Promise<ServiceCallDTO>;
+}
+
+export interface ValidatedModifierOption {
+  optionId: string;
+  name: string;
+  priceDelta: number;
+}
+
+export interface ValidatedModifierGroup {
+  groupId: string;
+  name: string;
+  minSelections: number;
+  maxSelections: number;
+  isRequired: boolean;
+  options: ValidatedModifierOption[];
+}
+
+export interface ValidatedProduct {
+  productId: string;
+  name: string;
+  price: number;
+  isAvailable: boolean;
+  modifierGroups: ValidatedModifierGroup[];
+}
+
+export interface CatalogValidationPort {
+  getOrderableProducts(tenantId: string, productIds: string[]): Promise<ValidatedProduct[]>;
+}
+
+export type GetCartUseCase = UseCase<{ tenantId: string; sessionId: string }, CartDTO>;
+
+export type AddCartItemUseCase = UseCase<
+  {
+    tenantId: string;
+    sessionId: string;
+    productId: string;
+    modifiers: CartModifierInput[];
+    quantity: number;
+    notes?: string;
+    addedBy?: string;
+    display: {
+      productName: string;
+      unitPrice: number;
+      modifierNames: {
+        groupName: string;
+        optionName: string;
+        priceDelta: number;
+      }[];
+    };
+  },
+  CartDTO
+>;
+
+export type UpdateCartItemQuantityUseCase = UseCase<
+  {
+    tenantId: string;
+    sessionId: string;
+    cartItemId: string;
+    quantity: number;
+  },
+  CartDTO
+>;
+
+export type RemoveCartItemUseCase = UseCase<
+  {
+    tenantId: string;
+    sessionId: string;
+    cartItemId: string;
+  },
+  CartDTO
+>;
+
+export type ConfirmOrderUseCase = UseCase<
+  {
+    tenantId: string;
+    sessionId: string;
+    tableId: string;
+  },
+  OrderDTO
+>;
+
+export type ListSessionOrdersUseCase = UseCase<
+  {
+    tenantId: string;
+    sessionId: string;
+  },
+  OrderDTO[]
+>;
+
+export type ListTenantOrdersUseCase = UseCase<
+  {
+    tenantId: string;
+    filter?: {
+      status?: OrderStatus;
+      tableId?: string;
+    };
+  },
+  OrderDTO[]
+>;
+
+export type GetOrderUseCase = UseCase<
+  {
+    tenantId: string;
+    orderId: string;
+    requester: {
+      role: string;
+      sessionId?: string;
+    };
+  },
+  OrderDTO
+>;
+
+export type CancelOrderUseCase = UseCase<
+  {
+    tenantId: string;
+    orderId: string;
+  },
+  OrderDTO
+>;
+
+export type UpdateOrderStatusUseCase = UseCase<
+  {
+    tenantId: string;
+    orderId: string;
+    status: OrderStatus;
+  },
+  OrderDTO
+>;
+
+export type CreateServiceCallUseCase = UseCase<
+  {
+    tenantId: string;
+    sessionId: string;
+    tableId: string;
+    note?: string;
+  },
+  ServiceCallDTO
+>;
+
+export type ResolveServiceCallUseCase = UseCase<
+  {
+    tenantId: string;
+    callId: string;
+  },
+  ServiceCallDTO
+>;
+
+export type ListServiceCallsUseCase = UseCase<
+  {
+    tenantId: string;
+    filter?: {
+      status?: ServiceCallStatus;
+    };
+  },
+  ServiceCallDTO[]
+>;
+
+export interface PaymentRepository {
+  save(tenantId: string, payment: PaymentDTO): Promise<PaymentDTO>;
+  findBySession(tenantId: string, sessionId: string): Promise<PaymentDTO | null>;
+}
+
+export interface SessionServicePort {
+  closeSession(tenantId: string, sessionId: string, requester: { userId: string; role: string }): Promise<void>;
+}
+
+export type GetBillUseCase = UseCase<{ tenantId: string; sessionId: string }, BillDTO>;
+
+export type ConfirmCheckoutUseCase = UseCase<
+  { tenantId: string; sessionId: string; tableId: string; method: PaymentMethod; recordedBy: string },
+  { bill: BillDTO; payment: PaymentDTO }
+>;
+
