@@ -1,8 +1,8 @@
 import request from 'supertest';
-import { createOrderingApp } from '../../src/app';
+import { createSeededOrderingTestApp  } from '../helpers/seededOrderingApp';
 
 describe('B. Ordering — integración HTTP (Tests 13-17)', () => {
-  const app = createOrderingApp();
+  const app = createSeededOrderingTestApp();
 
   test('13. POST /cart/items persiste la línea en el HASH cart:{tenantId}:{sessionId} con TTL configurado', async () => {
     const res = await request(app)

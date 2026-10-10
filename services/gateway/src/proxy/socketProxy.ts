@@ -32,6 +32,7 @@ export function attachSocketGateway(server: http.Server) {
       : `${config.services.ordering}/orders`;
 
     const upstream = ioc(targetUrl, {
+      auth: { token: clientSocket.handshake.auth?.token },
       transports: ['websocket'],
       reconnection: false,
     });

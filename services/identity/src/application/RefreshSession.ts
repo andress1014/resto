@@ -14,9 +14,9 @@ import {
 
 export class RefreshSessionUseCaseImpl implements RefreshSessionUseCase {
   constructor(
-    private readonly userRepo: UserRepository = new InMemoryUserRepository(),
-    private readonly refreshTokenRepo: RefreshTokenRepository = new InMemoryRefreshTokenRepository(),
-    private readonly tokenIssuer: TokenIssuer = new FakeTokenIssuer()
+    private readonly userRepo: UserRepository,
+    private readonly refreshTokenRepo: RefreshTokenRepository,
+    private readonly tokenIssuer: TokenIssuer
   ) {}
 
   async execute(input: { refreshToken: string }): Promise<AuthTokens> {

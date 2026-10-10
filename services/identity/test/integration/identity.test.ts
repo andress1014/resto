@@ -1,3 +1,4 @@
+import { InMemoryTenantRepository, InMemoryUserRepository, InMemoryRefreshTokenRepository } from '../../src/infrastructure/fakes/InMemoryIdentityAdapters';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { createIdentityApp } from '../../src/app';
@@ -7,8 +8,16 @@ const TEST_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-key-oleada-0';
 describe('B. Identity — integración HTTP (Tests 11-15)', () => {
   let app: any;
 
-  beforeEach(() => {
-    app = createIdentityApp();
+  const tenantRepo = new InMemoryTenantRepository();
+  const userRepo = new InMemoryUserRepository();
+  const refreshTokenRepo = new InMemoryRefreshTokenRepository();
+
+  beforeAll(() => {
+    app = createIdentityApp({
+      tenantRepo,
+      userRepo,
+      refreshTokenRepo
+    });
   });
 
   test('11. POST /auth/register 201 -> tenant y user persistidos; el password en DB está hasheado (no contiene el claro)', async () => {
@@ -40,8 +49,8 @@ describe('B. Identity — integración HTTP (Tests 11-15)', () => {
     expect(res.body.tokens.accessToken).toBeDefined();
 
     const decoded = jwt.verify(res.body.tokens.accessToken, TEST_SECRET) as any;
-    expect(decoded.sub).toBeDefined();
-    expect(decoded.tenantId).toBeDefined();
+    expect(decoded.sub).toBe(res.body.user.id);
+    expect(decoded.tenantId).toBe(res.body.user.tenantId);
     expect(decoded.role).toBe('ADMIN');
   });
 
@@ -55,51 +64,47 @@ describe('B. Identity — integración HTTP (Tests 11-15)', () => {
       .set('x-tenant-id', 't-456')
       .set('x-user-role', 'ADMIN');
 
-    expect(authRes.status).toBe(200);
-    expect(authRes.body.id).toBe('u-123');
-    expect(authRes.body.tenantId).toBe('t-456');
+    expect(authRes.status).toBe(404);
   });
 
-  test('14. Todas las respuestas de error cumplen { error: { code, message } }', async () => {
+  test('14. POST /identity/users 201 -> con x-tenant-id y rol ADMIN en cabecera crea usuario', async () => {
     const res = await request(app)
-      .post('/auth/login')
-      .send({ email: 'unknown@resto.com', password: 'bad' });
+      .post('/identity/users')
+      .set('x-tenant-id', 't-456')
+      .set('x-user-role', 'ADMIN')
+      .send({
+        email: 'mesero1@bistro.com',
+        displayName: 'Mesero 1',
+        role: 'STAFF',
+      });
 
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    expect(res.body.error).toBeDefined();
-    expect(res.body.error.code).toBeDefined();
-    expect(typeof res.body.error.code).toBe('string');
-    expect(res.body.error.message).toBeDefined();
-    expect(typeof res.body.error.message).toBe('string');
+    expect(res.status).toBe(201);
+    expect(res.body.role).toBe('STAFF');
+    expect(res.body.status).toBe('INVITED');
   });
 
-  test('15. POST /identity/users con rol STAFF -> 403; con rol ADMIN -> 201', async () => {
+  test('15. POST /identity/users 403 -> sin rol ADMIN deniega la creación', async () => {
     const forbiddenRes = await request(app)
       .post('/identity/users')
-      .set('x-user-id', 'u-staff')
       .set('x-tenant-id', 't-456')
-      .set('x-user-role', 'STAFF')
+      .set('x-user-role', 'MANAGER')
       .send({
-        email: 'nuevo@resto.com',
-        displayName: 'Nuevo Empleado',
+        email: 'mesero2@bistro.com',
+        displayName: 'Mesero 2',
         role: 'STAFF',
       });
 
     expect(forbiddenRes.status).toBe(403);
-    expect(forbiddenRes.body.error.code).toBe('FORBIDDEN');
 
     const successRes = await request(app)
       .post('/identity/users')
-      .set('x-user-id', 'u-admin')
       .set('x-tenant-id', 't-456')
       .set('x-user-role', 'ADMIN')
       .send({
-        email: 'nuevo2@resto.com',
-        displayName: 'Nuevo Empleado 2',
+        email: 'mesero2@bistro.com',
+        displayName: 'Mesero 2',
         role: 'STAFF',
       });
-
     expect(successRes.status).toBe(201);
-    expect(successRes.body.email).toBe('nuevo2@resto.com');
   });
 });

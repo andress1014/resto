@@ -1,11 +1,20 @@
 import request from 'supertest';
 import { createCatalogApp } from '../../src/app';
+import {
+  InMemoryCategoryRepository,
+  InMemoryProductRepository,
+  InMemoryModifierGroupRepository,
+} from '../../src/infrastructure/fakes/InMemoryCatalogAdapters';
 
 describe('D. Catalog — integración GraphQL (Tests 24-28)', () => {
   let app: any;
 
   beforeAll(async () => {
-    app = await createCatalogApp();
+    app = await createCatalogApp({
+      categoryRepo: new InMemoryCategoryRepository(),
+      productRepo: new InMemoryProductRepository(),
+      modifierGroupRepo: new InMemoryModifierGroupRepository(),
+    });
   });
 
   test('24. mutation createCategory -> query categories la devuelve', async () => {

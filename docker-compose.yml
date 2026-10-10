@@ -33,6 +33,85 @@ services:
       timeout: 5s
       retries: 5
 
+  identity:
+    profiles: ["services"]
+    build:
+      context: .
+      dockerfile: services/identity/Dockerfile
+    container_name: resto_identity
+    restart: unless-stopped
+    ports:
+      - "4001:4001"
+    environment:
+      NODE_ENV: production
+      PORT: 4001
+      IDENTITY_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/resto_identity?schema=public
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-oleada-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  catalog:
+    profiles: ["services"]
+    build:
+      context: .
+      dockerfile: services/catalog/Dockerfile
+    container_name: resto_catalog
+    restart: unless-stopped
+    ports:
+      - "4002:4002"
+    environment:
+      NODE_ENV: production
+      PORT: 4002
+      CATALOG_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/resto_catalog?schema=public
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-oleada-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  session:
+    profiles: ["services"]
+    build:
+      context: .
+      dockerfile: services/session/Dockerfile
+    container_name: resto_session
+    restart: unless-stopped
+    ports:
+      - "4003:4003"
+    environment:
+      NODE_ENV: production
+      PORT: 4003
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-oleada-0}
+      PWA_BASE_URL: http://localhost:3001
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  ordering:
+    profiles: ["services"]
+    build:
+      context: .
+      dockerfile: services/ordering/Dockerfile
+    container_name: resto_ordering
+    restart: unless-stopped
+    ports:
+      - "4004:4004"
+    environment:
+      NODE_ENV: production
+      ORDERING_PORT: 4004
+      PORT: 4004
+      ORDERING_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/resto_ordering?schema=public
+      REDIS_URL: redis://redis:6379/1
+      CATALOG_INTERNAL_URL: http://catalog:4002/graphql
+      SESSION_INTERNAL_URL: http://session:4003
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-oleada-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   gateway:
     build:
       context: .
@@ -60,42 +139,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-
-  identity:
-    profiles: ["services"]
-    build:
-      context: .
-      dockerfile: services/identity/Dockerfile
-    container_name: resto_identity
-    ports:
-      - "4001:4001"
-
-  catalog:
-    profiles: ["services"]
-    build:
-      context: .
-      dockerfile: services/catalog/Dockerfile
-    container_name: resto_catalog
-    ports:
-      - "4002:4002"
-
-  session:
-    profiles: ["services"]
-    build:
-      context: .
-      dockerfile: services/session/Dockerfile
-    container_name: resto_session
-    ports:
-      - "4003:4003"
-
-  ordering:
-    profiles: ["services"]
-    build:
-      context: .
-      dockerfile: services/ordering/Dockerfile
-    container_name: resto_ordering
-    ports:
-      - "4004:4004"
 
 volumes:
   postgres_data:

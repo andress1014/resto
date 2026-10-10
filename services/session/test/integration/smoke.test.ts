@@ -1,6 +1,6 @@
 import { routeTable } from '../../../gateway/src/routes/routeTable';
 import request from 'supertest';
-import { createSessionApp } from '../../src/app';
+import { createSeededSessionTestApp } from '../helpers/sessionTestApp';
 
 describe('D. Cierre de oleada (smoke) (Tests 28-30)', () => {
   test('28. Gateway: las filas nuevas de §2.2 activas; los tests de Oleadas 0+1 siguen en verde (sin regresión)', () => {
@@ -24,7 +24,7 @@ describe('D. Cierre de oleada (smoke) (Tests 28-30)', () => {
   });
 
   test('29. E2E por gateway: staff crea mesa -> obtiene QR -> guest abre sesión con la URL del QR -> query categories vía /v1/graphql con guest token devuelve la carta del tenant correcto (y NO la de otro tenant)', async () => {
-    const app = createSessionApp();
+    const app = createSeededSessionTestApp();
     const res = await request(app)
       .post('/tables')
       .set('x-tenant-id', 'tenant-100')

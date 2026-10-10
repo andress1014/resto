@@ -2,13 +2,13 @@ import http from 'http';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { io as Client, Socket as ClientSocket } from 'socket.io-client';
-import { createOrderingApp, sharedEventPublisher } from '../../src/app';
+import { createSeededOrderingTestApp, sharedEventPublisher  } from '../helpers/seededOrderingApp';
 import { SocketIoRealtimeEmitter } from '../../src/infrastructure/realtime/SocketIoRealtimeEmitter';
 import { wireRealtimeEvents } from '../../src/infrastructure/realtime/realtimeWiring';
 import { EventSubscriber, OrderEvent, ServiceCallEvent } from '@packages/shared-types';
 
 describe('B. Ordering — integración tiempo real y sockets (Tests 8-13)', () => {
-  const app = createOrderingApp();
+  const app = createSeededOrderingTestApp();
   const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_change_in_production';
 
   test('8. PATCH /orders/:id/status -> fila actualizada en Postgres Y mensaje en canal tenant:{t}:order-events con payload exacto { type, order, previousStatus, occurredAt }', async () => {
@@ -147,6 +147,34 @@ describe('B. Ordering — integración tiempo real y sockets (Tests 8-13)', () =
     staffSocket.disconnect();
     guest1Socket.disconnect();
     guest2Socket.disconnect();
+    await emitter.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  test('11b. Staff con role ADMIN en mayúsculas hace join al room tenant y recibe emitToTenant', async () => {
+    const server = http.createServer(app);
+    const emitter = new SocketIoRealtimeEmitter(server, JWT_SECRET);
+
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const port = (server.address() as any).port;
+    const socketUrl = `http://localhost:${port}/orders`;
+
+    const adminToken = jwt.sign({ tenantId: 't-1', role: 'ADMIN' }, JWT_SECRET);
+    const adminSocket: ClientSocket = Client(socketUrl, { auth: { token: adminToken }, forceNew: true });
+
+    await new Promise<void>((res) => adminSocket.on('connect', res));
+
+    const receivedEvents: any[] = [];
+    adminSocket.on('order:created', (data) => receivedEvents.push(data));
+
+    emitter.emitToTenant('t-1', 'order:created', { id: 'order-admin-test', status: 'PLACED' });
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(receivedEvents).toHaveLength(1);
+    expect(receivedEvents[0].id).toBe('order-admin-test');
+
+    adminSocket.disconnect();
     await emitter.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });

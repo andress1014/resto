@@ -15,6 +15,7 @@ export const BENTO_TOKENS: Record<string, string> = {
   '--bento-focus-ring': '2px solid #1E293B',
 };
 
+// Nota: packages/ui-components/src/bento/bento.css es la fuente de verdad montada en las apps
 export const BENTO_STYLESHEET = `
 :root {
   --bento-page-bg: #F5F5F7;
@@ -24,7 +25,7 @@ export const BENTO_STYLESHEET = `
   --bento-grid-gap: 16px;
   --bento-card-shadow: 0 4px 6px rgba(0,0,0,0.05);
   --bento-hover-scale: 1.02;
-  --bento-text': #1E293B;
+  --bento-text: #1E293B;
   --bento-text-muted: #64748B;
   --bento-accent: #EA580C;
   --bento-accent-strong: #C2410C;

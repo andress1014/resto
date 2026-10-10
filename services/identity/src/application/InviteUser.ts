@@ -4,10 +4,9 @@ import {
   UserRepository,
   DomainError,
 } from '@packages/shared-types';
-import { InMemoryUserRepository } from '../infrastructure/fakes/InMemoryIdentityAdapters';
 
 export class InviteUserUseCaseImpl implements InviteUserUseCase {
-  constructor(private readonly userRepo: UserRepository = new InMemoryUserRepository()) {}
+  constructor(private readonly userRepo: UserRepository) {}
 
   async execute(input: {
     tenantId: string;

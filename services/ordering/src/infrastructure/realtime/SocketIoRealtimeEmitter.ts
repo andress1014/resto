@@ -34,7 +34,7 @@ export class SocketIoRealtimeEmitter implements RealtimeEmitter {
         const decoded = jwt.verify(token, jwtSecret) as DecodedToken;
         socket.data.user = decoded;
 
-        const role = decoded.role;
+        const role = (decoded.role || '').toLowerCase();
         const tenantId = decoded.tenantId;
         const sessionId = decoded.sessionId;
 

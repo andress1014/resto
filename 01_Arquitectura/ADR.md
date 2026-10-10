@@ -49,6 +49,20 @@
 - **Decisión:** El Orquestador ejecuta el bucle Planificación Roja → Ejecución Roja → Planificación Verde → Ejecución Verde → Cierre/Doc → siguiente oleada de forma continua. Ante agotamiento del circuit breaker de Agy, se activa un Fix Loop (Kimi diagnostica y entrega plan de corrección sin código) con límite de 3 intentos antes de escalar a "Bloqueo Irresoluble" para el humano.
 - **Consecuencias:** Mayor velocidad de iteración; el humano solo interviene ante bloqueos estructurales reales, no en cada paso del ciclo TDD.
 
+## ADR-009: Checkout vive en Ordering Service, no en el gateway
+- **Fecha:** 2026-10-06
+- **Estado:** Aceptado
+- **Contexto:** El cierre de visita necesita sumar Orders, registrar un cobro y cerrar la sesión de mesa — podría vivir como orquestación en el gateway o como endpoints nuevos en Ordering.
+- **Decisión:** Vive en Ordering: la cuenta es un read-model sobre sus propias Orders, y el gateway nunca ha tenido lógica de negocio (solo tabla de rutas declarativa desde Oleada 0). La orquestación con Session Service se hace con un puerto anticorrupción nuevo (`SessionServicePort`), simétrico a `CatalogValidationPort` de Oleada 3.
+- **Consecuencias:** El gateway se mantiene como BFF puramente declarativo en las 6 oleadas. Idempotencia del cobro garantizada estructuralmente con `@@unique([tenantId, sessionId])` en la tabla `Payment`, sin locks aplicativos.
+
+## ADR-010: Verificación independiente del Orquestador antes de cerrar una oleada
+- **Fecha:** 2026-10-06
+- **Estado:** Aceptado
+- **Contexto:** En el cierre de Oleada 5, Agy reportó "182/182 tests, build limpio", pero al correr `pnpm -r run build` directamente el Orquestador encontró un `OrderStatus` sin importar que rompía la compilación de `services/ordering` — invisible para los tests porque ts-jest no hace type-check estricto de cada ruta. Precedente: Agy también había cometido un error aritmético en el cierre de Oleada 2 (reportó 134/134 cuando el total real era 104).
+- **Decisión:** El Orquestador no da una oleada por cerrada solo con el reporte del agente ejecutor; corre él mismo los comandos de verificación (`pnpm -r test`, `pnpm -r run build`) antes de actualizar la bóveda como completada.
+- **Consecuencias:** Costo de tiempo adicional por oleada, a cambio de que la bóveda nunca registre un estado "✅ Completada" que no sea cierto.
+
 ## ADR-004: Feature flags obligatorios para UI incompleta
 - **Fecha:** 2026-10-03
 - **Estado:** Aceptado

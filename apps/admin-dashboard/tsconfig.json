@@ -1,10 +1,28 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "jsx": "react-jsx",
+    "jsx": "preserve",
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "allowJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test"]
+  "include": [
+    "src/**/*",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    ".next"
+  ]
 }

@@ -1,11 +1,11 @@
 import request from 'supertest';
-import { createSessionApp } from '../../src/app';
+import { createSeededSessionTestApp } from '../helpers/sessionTestApp';
 
 describe('B. Session — integración (Tests 11-15)', () => {
   let app: any;
 
   beforeAll(() => {
-    app = createSessionApp();
+    app = createSeededSessionTestApp();
   });
 
   test('11. POST /sessions/open persiste el HASH session:{id} con TODOS los campos y TTL ≈ SESSION_TTL_SECONDS', async () => {

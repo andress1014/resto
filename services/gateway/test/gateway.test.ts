@@ -231,5 +231,54 @@ describe('B. @services/gateway — API Gateway (Tests 15-27)', () => {
         });
       });
     }, 4000);
+
+    test('28. socketProxy reenvía auth token del cliente a la conexión upstream', (done) => {
+      const orderingHttpServer = http.createServer();
+      const orderingIo = new SocketIOServer(orderingHttpServer);
+      const ordersNamespace = orderingIo.of('/orders');
+
+      let receivedAuthToken: string | undefined;
+      ordersNamespace.use((socket, next) => {
+        receivedAuthToken = socket.handshake.auth?.token;
+        next();
+      });
+
+      ordersNamespace.on('connection', (socket) => {
+        socket.emit('ready', { message: 'ordering-connected' });
+      });
+
+      orderingHttpServer.listen(0, () => {
+        const orderingPort = (orderingHttpServer.address() as any).port;
+        process.env.ORDERING_WS_PORT = String(orderingPort);
+
+        const gatewayServer = http.createServer(app);
+        gatewayServer.listen(0, () => {
+          const gatewayPort = (gatewayServer.address() as any).port;
+          const token = jwt.sign({ userId: 'u1', tenantId: 't1', role: 'ADMIN' }, TEST_SECRET);
+
+          const client: ClientSocket = ioc(`http://localhost:${gatewayPort}/orders`, {
+            auth: { token },
+            transports: ['websocket'],
+            reconnection: false,
+            timeout: 1000,
+          });
+
+          client.on('ready', () => {
+            expect(receivedAuthToken).toBe(token);
+            client.close();
+            gatewayServer.close();
+            orderingHttpServer.close();
+            done();
+          });
+
+          client.on('connect_error', (err) => {
+            client.close();
+            gatewayServer.close();
+            orderingHttpServer.close();
+            done(err);
+          });
+        });
+      });
+    }, 4000);
   });
 });

@@ -1,4 +1,6 @@
+"use client";
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { PwaApiClient } from '../../../../lib/api';
 import { BentoCard } from '@packages/ui-components';
 
@@ -13,6 +15,7 @@ export interface TableLandingPageProps {
 }
 
 export default function TableLandingPage({ params, searchParams }: TableLandingPageProps) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,7 +40,11 @@ export default function TableLandingPage({ params, searchParams }: TableLandingP
         });
 
         if (isMounted) {
-          window.history.pushState({}, '', `/t/${params.tenantId}/${params.tableId}/menu`);
+          const targetUrl = `/t/${params.tenantId}/${params.tableId}/menu`;
+          if (typeof window !== 'undefined' && window.location) {
+            window.history.pushState({}, '', targetUrl);
+          }
+          router.push(targetUrl);
         }
       } catch (err: any) {
         if (isMounted) {
@@ -51,21 +58,31 @@ export default function TableLandingPage({ params, searchParams }: TableLandingP
     return () => {
       isMounted = false;
     };
-  }, [params.tenantId, params.tableId, searchParams?.k]);
+  }, [params.tenantId, params.tableId, searchParams?.k, router]);
 
   if (error) {
     return (
-      <BentoCard>
-        <div role="alert" style={{ color: 'var(--bento-destructive)' }}>
-          {error}
+      <div style={{ padding: '16px', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: '100%', maxWidth: '400px' }}>
+          <BentoCard>
+            <div role="alert" style={{ color: 'var(--bento-destructive)', fontWeight: 600 }}>
+              {error}
+            </div>
+          </BentoCard>
         </div>
-      </BentoCard>
+      </div>
     );
   }
 
   return (
-    <BentoCard>
-      <div style={{ color: 'var(--bento-text)' }}>Conectando con la mesa...</div>
-    </BentoCard>
+    <div style={{ padding: '16px', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: '100%', maxWidth: '400px' }}>
+        <BentoCard>
+          <div style={{ color: 'var(--bento-text)', textAlign: 'center', padding: '12px 0' }}>
+            Conectando con la mesa...
+          </div>
+        </BentoCard>
+      </div>
+    </div>
   );
 }

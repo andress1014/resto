@@ -1,3 +1,4 @@
+import { InMemoryTenantRepository, InMemoryUserRepository, InMemoryRefreshTokenRepository, FakePasswordHasher, FakeTokenIssuer } from '../../src/infrastructure/fakes/InMemoryIdentityAdapters';
 import {
   RegisterTenantUseCaseImpl,
 } from '../../src/application/RegisterTenant';
@@ -15,7 +16,7 @@ import { DomainError } from '@packages/shared-types';
 describe('A. Identity — unitarios de casos de uso (Tests 1-10)', () => {
   describe('RegisterTenant (Tests 1-4)', () => {
     test('1. RegisterTenant crea tenant + usuario ADMIN y devuelve tokens', async () => {
-      const useCase = new RegisterTenantUseCaseImpl();
+      const useCase = new RegisterTenantUseCaseImpl(new InMemoryTenantRepository(), new InMemoryUserRepository(), new InMemoryRefreshTokenRepository(), new FakePasswordHasher(), new FakeTokenIssuer());
       const result = await useCase.execute({
         restaurantName: 'La Pergola',
         adminEmail: 'admin@pergola.com',
@@ -30,7 +31,7 @@ describe('A. Identity — unitarios de casos de uso (Tests 1-10)', () => {
     });
 
     test('2. RegisterTenant con email ya usado en ese tenant -> EMAIL_TAKEN', async () => {
-      const useCase = new RegisterTenantUseCaseImpl();
+      const useCase = new RegisterTenantUseCaseImpl(new InMemoryTenantRepository(), new InMemoryUserRepository(), new InMemoryRefreshTokenRepository(), new FakePasswordHasher(), new FakeTokenIssuer());
       await expect(
         useCase.execute({
           restaurantName: 'La Pergola',
@@ -44,7 +45,7 @@ describe('A. Identity — unitarios de casos de uso (Tests 1-10)', () => {
     });
 
     test('3. RegisterTenant con slug tomado -> SLUG_TAKEN', async () => {
-      const useCase = new RegisterTenantUseCaseImpl();
+      const useCase = new RegisterTenantUseCaseImpl(new InMemoryTenantRepository(), new InMemoryUserRepository(), new InMemoryRefreshTokenRepository(), new FakePasswordHasher(), new FakeTokenIssuer());
       await expect(
         useCase.execute({
           restaurantName: 'La Pergola',
@@ -59,7 +60,7 @@ describe('A. Identity — unitarios de casos de uso (Tests 1-10)', () => {
     });
 
     test('4. RegisterTenant con password < 8 caracteres -> VALIDATION_ERROR', async () => {
-      const useCase = new RegisterTenantUseCaseImpl();
+      const useCase = new RegisterTenantUseCaseImpl(new InMemoryTenantRepository(), new InMemoryUserRepository(), new InMemoryRefreshTokenRepository(), new FakePasswordHasher(), new FakeTokenIssuer());
       await expect(
         useCase.execute({
           restaurantName: 'La Pergola',
@@ -75,7 +76,7 @@ describe('A. Identity — unitarios de casos de uso (Tests 1-10)', () => {
 
   describe('Login (Tests 5-6)', () => {
     test('5. Login con credenciales válidas -> tokens + UserDTO sin passwordHash', async () => {
-      const useCase = new LoginUseCaseImpl();
+      const useCase = new LoginUseCaseImpl(new InMemoryTenantRepository(), new InMemoryUserRepository(), new InMemoryRefreshTokenRepository(), new FakePasswordHasher(), new FakeTokenIssuer());
       const result = await useCase.execute({
         email: 'user@resto.com',
         password: 'validpassword',
@@ -87,7 +88,7 @@ describe('A. Identity — unitarios de casos de uso (Tests 1-10)', () => {
     });
 
     test('6. Login con password erróneo o email inexistente -> mismo INVALID_CREDENTIALS en ambos casos', async () => {
-      const useCase = new LoginUseCaseImpl();
+      const useCase = new LoginUseCaseImpl(new InMemoryTenantRepository(), new InMemoryUserRepository(), new InMemoryRefreshTokenRepository(), new FakePasswordHasher(), new FakeTokenIssuer());
       await expect(
         useCase.execute({
           email: 'nonexistent@resto.com',
@@ -110,7 +111,7 @@ describe('A. Identity — unitarios de casos de uso (Tests 1-10)', () => {
 
   describe('RefreshSession (Tests 7-8)', () => {
     test('7. RefreshSession con refresh válido -> nuevo par de tokens Y el refresh anterior queda revocado (rotación)', async () => {
-      const useCase = new RefreshSessionUseCaseImpl();
+      const useCase = new RefreshSessionUseCaseImpl(new InMemoryUserRepository(), new InMemoryRefreshTokenRepository(), new FakeTokenIssuer());
       const tokens = await useCase.execute({ refreshToken: 'valid-refresh-token' });
 
       expect(tokens.accessToken).toBeDefined();
@@ -118,7 +119,7 @@ describe('A. Identity — unitarios de casos de uso (Tests 1-10)', () => {
     });
 
     test('8. RefreshSession con refresh revocado o expirado -> INVALID_CREDENTIALS', async () => {
-      const useCase = new RefreshSessionUseCaseImpl();
+      const useCase = new RefreshSessionUseCaseImpl(new InMemoryUserRepository(), new InMemoryRefreshTokenRepository(), new FakeTokenIssuer());
       await expect(
         useCase.execute({ refreshToken: 'expired-or-revoked-token' })
       ).rejects.toThrow(
@@ -129,7 +130,7 @@ describe('A. Identity — unitarios de casos de uso (Tests 1-10)', () => {
 
   describe('InviteUser (Tests 9-10)', () => {
     test('9. InviteUser crea usuario MANAGER/STAFF en el tenant del admin autenticado', async () => {
-      const useCase = new InviteUserUseCaseImpl();
+      const useCase = new InviteUserUseCaseImpl(new InMemoryUserRepository());
       const user = await useCase.execute({
         tenantId: 'tenant-123',
         email: 'staff@resto.com',
@@ -143,7 +144,7 @@ describe('A. Identity — unitarios de casos de uso (Tests 1-10)', () => {
     });
 
     test('10. InviteUser ignora cualquier tenantId del input: siempre usa el del token', async () => {
-      const useCase = new InviteUserUseCaseImpl();
+      const useCase = new InviteUserUseCaseImpl(new InMemoryUserRepository());
       const user = await useCase.execute({
         tenantId: 'tenant-from-token',
         email: 'manager@resto.com',

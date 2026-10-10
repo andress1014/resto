@@ -82,13 +82,19 @@ export class InMemoryUserRepository implements UserRepository {
   }
 
   async findByEmail(tenantId: string, email: string): Promise<UserDTO | null> {
+    const u = await this.findWithPasswordByEmail(tenantId, email);
+    if (!u) return null;
+    const { passwordHash, ...userDto } = u;
+    return userDto as UserDTO;
+  }
+
+  async findWithPasswordByEmail(tenantId: string, email: string): Promise<(UserDTO & { passwordHash: string }) | null> {
     const u = this.users.find((user) => {
       const matchEmail = user.email.toLowerCase() === email.toLowerCase();
       return tenantId ? user.tenantId === tenantId && matchEmail : matchEmail;
     });
     if (!u) return null;
-    const { passwordHash, ...userDto } = u;
-    return userDto;
+    return u;
   }
 
   async listByTenant(tenantId: string): Promise<UserDTO[]> {

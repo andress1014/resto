@@ -48,4 +48,8 @@ export const routeTable: RouteDefinition[] = [
   { method: 'POST', path: '/v1/service-calls', auth: true, targetService: 'ordering' },
   { method: 'GET', path: '/v1/service-calls', auth: true, requiredRoles: ['staff', 'manager', 'admin'], targetService: 'ordering' },
   { method: 'PATCH', path: '/v1/service-calls/:id/resolve', auth: true, requiredRoles: ['staff', 'manager', 'admin'], targetService: 'ordering' },
+
+  // Checkout (Oleada 5)
+  { method: 'GET', path: '/v1/checkout/:sessionId', auth: true, requiredRoles: ['staff', 'manager', 'admin'], targetService: 'ordering' },
+  { method: 'POST', path: '/v1/checkout/confirm', auth: true, requiredRoles: ['staff', 'manager', 'admin'], targetService: 'ordering' },
 ];

@@ -4,6 +4,7 @@ import {
   OrderItemDTO,
   OrderModifierDTO,
   OrderRepository,
+  OrderStatus,
 } from '@packages/shared-types';
 
 export class PrismaOrderRepository implements OrderRepository {

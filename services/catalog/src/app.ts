@@ -5,12 +5,36 @@ import { typeDefs } from './interfaces/graphql/typeDefs';
 import { createResolvers } from './interfaces/graphql/resolvers';
 import { buildCatalogContext, CatalogContext } from './interfaces/graphql/context';
 import {
+  CategoryRepository,
+  ProductRepository,
+  ModifierGroupRepository,
+} from '@packages/shared-types';
+import { PrismaClient } from './generated/client';
+import { PrismaCategoryRepository } from './infrastructure/persistence/PrismaCategoryRepository';
+import { PrismaProductRepository } from './infrastructure/persistence/PrismaProductRepository';
+import { PrismaModifierGroupRepository } from './infrastructure/persistence/PrismaModifierGroupRepository';
+import {
   InMemoryCategoryRepository,
   InMemoryProductRepository,
   InMemoryModifierGroupRepository,
 } from './infrastructure/fakes/InMemoryCatalogAdapters';
 
-export async function createCatalogApp(): Promise<express.Application> {
+export interface CatalogAppDeps {
+  categoryRepo?: CategoryRepository;
+  productRepo?: ProductRepository;
+  modifierGroupRepo?: ModifierGroupRepository;
+}
+
+let defaultPrismaClient: PrismaClient | null = null;
+
+function getPrismaClient(): PrismaClient {
+  if (!defaultPrismaClient) {
+    defaultPrismaClient = new PrismaClient();
+  }
+  return defaultPrismaClient;
+}
+
+export async function createCatalogApp(deps?: CatalogAppDeps): Promise<express.Application> {
   const app: express.Application = express();
   app.use(express.json());
 
@@ -18,9 +42,10 @@ export async function createCatalogApp(): Promise<express.Application> {
     res.status(200).json({ status: 'ok' });
   });
 
-  const categoryRepo = new InMemoryCategoryRepository();
-  const productRepo = new InMemoryProductRepository();
-  const modifierGroupRepo = new InMemoryModifierGroupRepository();
+  const prisma = getPrismaClient();
+  const categoryRepo = deps?.categoryRepo || new PrismaCategoryRepository(prisma);
+  const productRepo = deps?.productRepo || new PrismaProductRepository(prisma);
+  const modifierGroupRepo = deps?.modifierGroupRepo || new PrismaModifierGroupRepository(prisma);
 
   const resolvers = createResolvers({
     categoryRepo,

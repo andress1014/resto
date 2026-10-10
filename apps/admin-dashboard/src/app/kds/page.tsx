@@ -1,8 +1,11 @@
+"use client";
 import React, { useState, useEffect } from 'react';
 import { FeatureGuard } from '@packages/ui-components';
 import { OrderDTO, ServiceCallDTO, OrderStatus } from '@packages/shared-types';
 import { KdsBoard, ServiceCallPanel, KdsLiveAnnouncer } from '../../components/kds';
 import * as realtime from '../../lib/realtime';
+
+import { ApiClient } from '../../lib/api';
 
 export default function KdsPage() {
   const [orders, setOrders] = useState<OrderDTO[]>([]);
@@ -12,7 +15,9 @@ export default function KdsPage() {
 
   // Hook realtime socket when mounted (if token exists)
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token =
+      ApiClient.token ||
+      (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
     if (!token) return;
 
     const socket = realtime.connectOrdersSocket(token);
@@ -51,7 +56,7 @@ export default function KdsPage() {
   const handleAdvanceStatus = async (orderId: string, nextStatus: OrderStatus) => {
     setUpdatingOrderId(orderId);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = ApiClient.token;
       const res = await fetch(`/v1/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
@@ -70,7 +75,7 @@ export default function KdsPage() {
   };
 
   const handleResolveCall = async (callId: string) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = ApiClient.token;
     const res = await fetch(`/v1/service-calls/${callId}/resolve`, {
       method: 'PATCH',
       headers: {

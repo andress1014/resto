@@ -24,10 +24,15 @@ export function authMiddleware(requiredRoles?: string[]) {
     const token = authHeader.split(' ')[1];
     try {
       const decoded = jwt.verify(token, config.jwtSecret) as AuthenticatedUser;
+      if (!decoded.userId && (decoded as any).sub) {
+        decoded.userId = (decoded as any).sub;
+      }
       (req as any).user = decoded;
 
       if (requiredRoles && requiredRoles.length > 0) {
-        if (!decoded.role || !requiredRoles.includes(decoded.role)) {
+        const userRole = (decoded.role || '').toLowerCase();
+        const allowedRoles = requiredRoles.map(r => r.toLowerCase());
+        if (!userRole || !allowedRoles.includes(userRole)) {
           return res.status(403).json({
             error: {
               code: 'FORBIDDEN',

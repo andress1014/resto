@@ -1,9 +1,9 @@
 import request from 'supertest';
 import nock from 'nock';
-import { createOrderingApp } from '../../src/app';
+import { createSeededOrderingTestApp  } from '../helpers/seededOrderingApp';
 
 describe('B. Ordering — integración checkout (Tests 9-12)', () => {
-  const app = createOrderingApp();
+  const app = createSeededOrderingTestApp();
 
   test('9. GET /checkout/:sessionId -> bill con las orders reales de Postgres y total correcto', async () => {
     const res = await request(app)

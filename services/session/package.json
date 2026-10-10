@@ -14,6 +14,7 @@
     "@packages/shared-types": "workspace:*",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.2",
     "qrcode": "^1.5.4"
   },

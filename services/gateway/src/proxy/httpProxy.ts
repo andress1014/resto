@@ -23,7 +23,8 @@ export function createServiceProxy(target: string) {
           proxyReq.write(bodyData);
         }
       },
-      error: (_err: any, _req: any, res: any) => {
+      error: (err: any, req: any, res: any) => {
+        console.error(`[Gateway Proxy Error] ${req?.method} ${req?.url}:`, err?.message || err);
         const expressRes = res as Response;
         if (typeof expressRes.status === 'function' && !expressRes.headersSent) {
           expressRes.status(502).json({

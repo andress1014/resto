@@ -17,6 +17,7 @@ export interface TenantRepository {
 export interface UserRepository {
   findById(id: string): Promise<UserDTO | null>;
   findByEmail(tenantId: string, email: string): Promise<UserDTO | null>;
+  findWithPasswordByEmail(tenantId: string, email: string): Promise<(UserDTO & { passwordHash: string }) | null>;
   listByTenant(tenantId: string): Promise<UserDTO[]>;
   save(user: UserDTO & { passwordHash: string }): Promise<UserDTO>;
 }

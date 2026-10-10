@@ -5,7 +5,7 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { io as Client, Socket as ClientSocket } from 'socket.io-client';
 import { routeTable } from '../../../gateway/src/routes/routeTable';
-import { createOrderingApp, sharedEventPublisher } from '../../src/app';
+import { createSeededOrderingTestApp, sharedEventPublisher  } from '../helpers/seededOrderingApp';
 import { SocketIoRealtimeEmitter } from '../../src/infrastructure/realtime/SocketIoRealtimeEmitter';
 import { wireRealtimeEvents } from '../../src/infrastructure/realtime/realtimeWiring';
 import { EventSubscriber, OrderEvent, ServiceCallEvent } from '@packages/shared-types';
@@ -41,7 +41,7 @@ describe('D. Cierre de oleada (smoke) (Tests 24-26)', () => {
   });
 
   test('26. E2E real: guest confirma order -> staff conectado por socket la ve en el KDS -> avanza a READY -> guest recibe order:status-changed de SU mesa; llamado a mesero visible para staff y resoluble en tiempo real', async () => {
-    const app = createOrderingApp();
+    const app = createSeededOrderingTestApp();
     const tenantId = 'tenant-smoke-e2e';
     const sessionId = 'session-smoke-e2e';
 

@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -56,4 +57,25 @@ model OrderItemModifier {
   priceDelta  Decimal   @default(0) @db.Decimal(10, 2)
 
   @@index([orderItemId])
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  OTHER
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  tenantId    String
+  sessionId   String
+  tableId     String
+  amount      Decimal       @db.Decimal(10, 2)
+  method      PaymentMethod
+  ordersCount Int
+  recordedBy  String
+  createdAt   DateTime      @default(now())
+
+  @@unique([tenantId, sessionId])
+  @@index([tenantId, createdAt])
 }

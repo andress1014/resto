@@ -20,11 +20,11 @@ import {
 
 export class RegisterTenantUseCaseImpl implements RegisterTenantUseCase {
   constructor(
-    private readonly tenantRepo: TenantRepository = new InMemoryTenantRepository(),
-    private readonly userRepo: UserRepository = new InMemoryUserRepository(),
-    private readonly refreshTokenRepo: RefreshTokenRepository = new InMemoryRefreshTokenRepository(),
-    private readonly passwordHasher: PasswordHasher = new FakePasswordHasher(),
-    private readonly tokenIssuer: TokenIssuer = new FakeTokenIssuer()
+    private readonly tenantRepo: TenantRepository,
+    private readonly userRepo: UserRepository,
+    private readonly refreshTokenRepo: RefreshTokenRepository,
+    private readonly passwordHasher: PasswordHasher,
+    private readonly tokenIssuer: TokenIssuer
   ) {}
 
   async execute(input: RegisterTenantRequest): Promise<RegisterTenantResult> {

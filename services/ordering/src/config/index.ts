@@ -9,7 +9,10 @@ export const config = {
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379/1',
   catalogInternalUrl:
     process.env.CATALOG_INTERNAL_URL || 'http://localhost:4002/graphql',
+  sessionInternalUrl:
+    process.env.SESSION_INTERNAL_URL || 'http://localhost:4003',
   cartTtlSeconds: parseInt(process.env.CART_TTL_SECONDS || '14400', 10),
   cartPollIntervalMs: parseInt(process.env.CART_POLL_INTERVAL_MS || '5000', 10),
   serviceCallTtlSeconds: parseInt(process.env.SERVICE_CALL_TTL_SECONDS || '7200', 10),
+  jwtSecret: process.env.JWT_SECRET || 'super-secret-jwt-key-oleada-0',
 };

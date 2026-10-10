@@ -179,6 +179,10 @@ const config = {
         "fromEnvVar": null,
         "value": "windows",
         "native": true
+      },
+      {
+        "fromEnvVar": null,
+        "value": "linux-musl-openssl-3.0.x"
       }
     ],
     "previewFeatures": [],
@@ -204,8 +208,8 @@ const config = {
       }
     }
   },
-  "inlineSchema": "generator client {\n  provider = \"prisma-client-js\"\n  output   = \"../src/generated/client\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"IDENTITY_DATABASE_URL\")\n}\n\nenum TenantStatus {\n  ACTIVE\n  SUSPENDED\n}\n\nenum Role {\n  ADMIN\n  MANAGER\n  STAFF\n  CUSTOMER\n}\n\nenum UserStatus {\n  ACTIVE\n  INVITED\n  SUSPENDED\n}\n\nmodel Tenant {\n  id        String       @id @default(uuid())\n  name      String\n  slug      String       @unique\n  status    TenantStatus @default(ACTIVE)\n  createdAt DateTime     @default(now())\n  updatedAt DateTime     @updatedAt\n  users     User[]\n}\n\nmodel User {\n  id            String         @id @default(uuid())\n  tenantId      String\n  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)\n  email         String\n  passwordHash  String\n  displayName   String\n  role          Role           @default(ADMIN)\n  status        UserStatus     @default(ACTIVE)\n  createdAt     DateTime       @default(now())\n  updatedAt     DateTime       @updatedAt\n  refreshTokens RefreshToken[]\n\n  @@unique([tenantId, email])\n  @@index([email])\n}\n\nmodel RefreshToken {\n  id        String    @id @default(uuid())\n  userId    String\n  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)\n  tokenHash String    @unique\n  expiresAt DateTime\n  revokedAt DateTime?\n  createdAt DateTime  @default(now())\n\n  @@index([userId])\n}\n",
-  "inlineSchemaHash": "faac96a648a1093a029ea8a36a97a00cfd9702a324ff6c409b1acf9d411f083d",
+  "inlineSchema": "generator client {\n  provider      = \"prisma-client-js\"\n  output        = \"../src/generated/client\"\n  binaryTargets = [\"native\", \"linux-musl-openssl-3.0.x\"]\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"IDENTITY_DATABASE_URL\")\n}\n\nenum TenantStatus {\n  ACTIVE\n  SUSPENDED\n}\n\nenum Role {\n  ADMIN\n  MANAGER\n  STAFF\n  CUSTOMER\n}\n\nenum UserStatus {\n  ACTIVE\n  INVITED\n  SUSPENDED\n}\n\nmodel Tenant {\n  id        String       @id @default(uuid())\n  name      String\n  slug      String       @unique\n  status    TenantStatus @default(ACTIVE)\n  createdAt DateTime     @default(now())\n  updatedAt DateTime     @updatedAt\n  users     User[]\n}\n\nmodel User {\n  id            String         @id @default(uuid())\n  tenantId      String\n  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)\n  email         String\n  passwordHash  String\n  displayName   String\n  role          Role           @default(ADMIN)\n  status        UserStatus     @default(ACTIVE)\n  createdAt     DateTime       @default(now())\n  updatedAt     DateTime       @updatedAt\n  refreshTokens RefreshToken[]\n\n  @@unique([tenantId, email])\n  @@index([email])\n}\n\nmodel RefreshToken {\n  id        String    @id @default(uuid())\n  userId    String\n  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)\n  tokenHash String    @unique\n  expiresAt DateTime\n  revokedAt DateTime?\n  createdAt DateTime  @default(now())\n\n  @@index([userId])\n}\n",
+  "inlineSchemaHash": "bdaad349a737eb4ef9eefcb74e73b436ccee39604b99b1f54eb27d6a3c995877",
   "copyEngine": true
 }
 config.dirname = '/'

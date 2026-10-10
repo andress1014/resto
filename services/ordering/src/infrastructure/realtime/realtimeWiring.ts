@@ -19,6 +19,15 @@ export function wireRealtimeEvents(subscriber: EventSubscriber, emitter: Realtim
       };
       emitter.emitToTenant(event.order.tenantId, 'order:status-changed', payload);
       emitter.emitToSession(event.order.sessionId, 'order:status-changed', payload);
+    } else if ((event as any).type === 'session.checkout-completed') {
+      const e = event as any;
+      const payload = {
+        sessionId: e.sessionId,
+        tableId: e.tableId,
+        payment: e.payment,
+        occurredAt: e.occurredAt,
+      };
+      emitter.emitToTenant(e.payment.tenantId, 'session:checkout-completed', payload);
     }
   });
 

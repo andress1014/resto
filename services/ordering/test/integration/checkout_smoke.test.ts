@@ -2,7 +2,7 @@ import { routeTable } from '../../../gateway/src/routes/routeTable';
 import fs from 'fs';
 import path from 'path';
 import request from 'supertest';
-import { createOrderingApp } from '../../src/app';
+import { createSeededOrderingTestApp  } from '../helpers/seededOrderingApp';
 
 describe('D. Cierre de oleada (smoke) (Tests 20-22)', () => {
   test('20. Gateway: filas de §3.2 activas; los 160 tests previos en verde', () => {
@@ -23,7 +23,7 @@ describe('D. Cierre de oleada (smoke) (Tests 20-22)', () => {
   });
 
   test('21. E2E flujo completo de cierre de visita: dos guests piden -> staff consulta la cuenta consolidada -> registra cobro en efectivo -> la TableSession queda cerrada -> carrito inexistente en Redis -> sin service-calls pendientes', async () => {
-    const app = createOrderingApp();
+    const app = createSeededOrderingTestApp();
     const tenantId = 't-smoke-e2e';
     const sessionId = 's-smoke-e2e';
 

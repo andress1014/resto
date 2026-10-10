@@ -4,22 +4,31 @@ import { errorHandler } from './interfaces/http/middleware/errorHandler';
 import { createCartRouter } from './interfaces/http/cart.routes';
 import { createOrdersRouter } from './interfaces/http/orders.routes';
 import { createServiceCallsRouter } from './interfaces/http/serviceCalls.routes';
+import { createCheckoutRouter } from './interfaces/http/checkout.routes';
 import { CartUseCases } from './application/CartUseCases';
 import { OrderUseCases } from './application/OrderUseCases';
 import { ServiceCallUseCases } from './application/ServiceCallUseCases';
-import {
-  InMemoryCartRepository,
-  InMemoryOrderRepository,
-  InMemoryCatalogValidationAdapter,
-  InMemoryEventPublisher,
-  InMemoryServiceCallRepository,
-} from './infrastructure/fakes/InMemoryOrderingAdapters';
+import { CheckoutUseCases } from './application/CheckoutUseCases';
+
+import { HttpSessionServiceAdapter } from './infrastructure/session/HttpSessionServiceAdapter';
+import { PrismaOrderRepository } from './infrastructure/persistence/PrismaOrderRepository';
+import { PrismaPaymentRepository } from './infrastructure/persistence/PrismaPaymentRepository';
+import { RedisCartRepository } from './infrastructure/persistence/RedisCartRepository';
+import { RedisServiceCallRepository } from './infrastructure/persistence/RedisServiceCallRepository';
+import { GraphqlCatalogValidationAdapter } from './infrastructure/catalog/GraphqlCatalogValidationAdapter';
+import { RedisEventPublisher } from './infrastructure/events/RedisEventPublisher';
+import { config } from './config';
+import { PrismaClient } from '@prisma/client';
+import Redis from 'ioredis';
+
 import {
   CartRepository,
   CatalogValidationPort,
   EventPublisher,
   OrderRepository,
+  PaymentRepository,
   ServiceCallRepository,
+  SessionServicePort,
 } from '@packages/shared-types';
 import { CatalogUnreachableError } from './domain/errors';
 
@@ -29,76 +38,25 @@ export interface AppDependencies {
   catalogValidation?: CatalogValidationPort;
   serviceCallRepo?: ServiceCallRepository;
   eventPublisher?: EventPublisher;
+  paymentRepo?: PaymentRepository;
+  sessionService?: SessionServicePort;
 }
 
-export const sharedCartRepo = new InMemoryCartRepository();
-export const sharedOrderRepo = new InMemoryOrderRepository();
-export const sharedCatalogValidation = new InMemoryCatalogValidationAdapter();
-export const sharedServiceCallRepo = new InMemoryServiceCallRepository();
-export const sharedEventPublisher = new InMemoryEventPublisher();
+let prismaClient: PrismaClient | null = null;
+function getPrisma(): PrismaClient {
+  if (!prismaClient) {
+    prismaClient = new PrismaClient();
+  }
+  return prismaClient;
+}
 
-// Pre-seed default catalog products for integration testing
-sharedCatalogValidation.products = [
-  {
-    productId: 'prod-1',
-    name: 'Tacos',
-    price: 10,
-    isAvailable: true,
-    modifierGroups: [
-      {
-        groupId: 'g1',
-        name: 'Salsa',
-        minSelections: 0,
-        maxSelections: 1,
-        isRequired: false,
-        options: [{ optionId: 'o1', name: 'Verde', priceDelta: 0 }],
-      },
-    ],
-  },
-];
-
-// Pre-seed orders for integration testing
-sharedOrderRepo.orders.push({
-  id: 'order-other-session',
-  tenantId: 'tenant-1',
-  sessionId: 'session-other',
-  tableId: 'table-other',
-  status: 'PLACED',
-  total: 50,
-  items: [],
-  createdAt: new Date().toISOString(),
-});
-
-sharedOrderRepo.orders.push({
-  id: 'ord-realtime-test',
-  tenantId: 't-1',
-  sessionId: 's-1',
-  tableId: 'tb-1',
-  status: 'PLACED',
-  total: 20,
-  items: [],
-  createdAt: new Date().toISOString(),
-});
-
-sharedOrderRepo.orders.push({
-  id: 'ord-test',
-  tenantId: 't-1',
-  sessionId: 's-1',
-  tableId: 'tb-1',
-  status: 'PLACED',
-  total: 20,
-  items: [],
-  createdAt: new Date().toISOString(),
-});
-
-sharedServiceCallRepo.calls.push({
-  callId: 'call-to-resolve',
-  tenantId: 't-1',
-  sessionId: 's-1',
-  tableId: 'tb-1',
-  status: 'pending',
-  createdAt: new Date().toISOString(),
-});
+let redisClient: Redis | null = null;
+function getRedis(): Redis {
+  if (!redisClient) {
+    redisClient = new Redis(config.redisUrl || 'redis://localhost:6379/1');
+  }
+  return redisClient;
+}
 
 export function createOrderingApp(deps?: AppDependencies): Express {
   const app = express();
@@ -109,11 +67,19 @@ export function createOrderingApp(deps?: AppDependencies): Express {
     res.json({ status: 'ok' });
   });
 
-  const cartRepo = deps?.cartRepo || sharedCartRepo;
-  const orderRepo = deps?.orderRepo || sharedOrderRepo;
-  const catalogValidation = deps?.catalogValidation || sharedCatalogValidation;
-  const serviceCallRepo = deps?.serviceCallRepo || sharedServiceCallRepo;
-  const eventPublisher = deps?.eventPublisher || sharedEventPublisher;
+  const usePrisma = !deps?.orderRepo || !deps?.paymentRepo;
+  const prisma = usePrisma ? getPrisma() : null;
+
+  const useRedis = !deps?.cartRepo || !deps?.serviceCallRepo || !deps?.eventPublisher;
+  const redis = useRedis ? getRedis() : null;
+
+  const cartRepo = deps?.cartRepo || new RedisCartRepository(redis!);
+  const orderRepo = deps?.orderRepo || new PrismaOrderRepository(prisma!);
+  const catalogValidation = deps?.catalogValidation || new GraphqlCatalogValidationAdapter(config.catalogInternalUrl);
+  const serviceCallRepo = deps?.serviceCallRepo || new RedisServiceCallRepository(redis!);
+  const eventPublisher = deps?.eventPublisher || new RedisEventPublisher(redis!);
+  const paymentRepo = deps?.paymentRepo || new PrismaPaymentRepository(prisma!);
+  const sessionService = deps?.sessionService || new HttpSessionServiceAdapter(config.sessionInternalUrl);
 
   // Wrapped catalog validation intercepting simulated network failures
   const wrappedCatalogValidation: CatalogValidationPort = {
@@ -134,6 +100,14 @@ export function createOrderingApp(deps?: AppDependencies): Express {
     eventPublisher
   );
   const serviceCallUseCases = new ServiceCallUseCases(serviceCallRepo, eventPublisher);
+  const checkoutUseCases = new CheckoutUseCases(
+    orderRepo,
+    paymentRepo,
+    sessionService,
+    cartRepo,
+    serviceCallRepo,
+    eventPublisher
+  );
 
   // Protected routes require Gateway headers
   app.use(requireGatewayIdentity);
@@ -141,7 +115,7 @@ export function createOrderingApp(deps?: AppDependencies): Express {
   // Simulation hook for test 17 (session-catalog-down)
   app.use('/cart/confirm', (req, _res, next) => {
     if (req.auth?.sessionId === 'session-catalog-down') {
-      return next(new CatalogUnreachableError('Fallo al conectar con el microservicio de Catálogo'));
+      return next(new CatalogUnreachableError('Fallo al conectar con el microservicio de Catǭlogo'));
     }
     next();
   });
@@ -149,10 +123,9 @@ export function createOrderingApp(deps?: AppDependencies): Express {
   app.use('/cart', createCartRouter(cartUseCases, orderUseCases));
   app.use('/orders', createOrdersRouter(orderUseCases));
   app.use('/service-calls', createServiceCallsRouter(serviceCallUseCases));
+  app.use('/checkout', createCheckoutRouter(checkoutUseCases));
 
   app.use(errorHandler);
 
   return app;
 }
-
-export const app = createOrderingApp();

@@ -19,11 +19,11 @@ import {
 
 export class LoginUseCaseImpl implements LoginUseCase {
   constructor(
-    private readonly tenantRepo: TenantRepository = new InMemoryTenantRepository(),
-    private readonly userRepo: UserRepository = new InMemoryUserRepository(),
-    private readonly refreshTokenRepo: RefreshTokenRepository = new InMemoryRefreshTokenRepository(),
-    private readonly passwordHasher: PasswordHasher = new FakePasswordHasher(),
-    private readonly tokenIssuer: TokenIssuer = new FakeTokenIssuer()
+    private readonly tenantRepo: TenantRepository,
+    private readonly userRepo: UserRepository,
+    private readonly refreshTokenRepo: RefreshTokenRepository,
+    private readonly passwordHasher: PasswordHasher,
+    private readonly tokenIssuer: TokenIssuer
   ) {}
 
   async execute(input: {
@@ -35,38 +35,32 @@ export class LoginUseCaseImpl implements LoginUseCase {
     if (input.tenantSlug) {
       const tenant = await this.tenantRepo.findBySlug(input.tenantSlug);
       if (!tenant) {
-        throw new DomainError('INVALID_CREDENTIALS', 'Credenciales inválidas');
+        throw new DomainError('INVALID_CREDENTIALS', 'Credenciales invalidas');
       }
       tenantId = tenant.id;
     }
 
-    const user = await this.userRepo.findByEmail(tenantId, input.email);
-    if (!user) {
-      throw new DomainError('INVALID_CREDENTIALS', 'Credenciales inválidas');
+    const userWithHash = await this.userRepo.findWithPasswordByEmail(tenantId, input.email);
+    if (!userWithHash) {
+      throw new DomainError('INVALID_CREDENTIALS', 'Credenciales invalidas');
     }
 
-    // Retrieve user with passwordHash
-    let userWithHash: any = user;
-    if (this.userRepo instanceof InMemoryUserRepository) {
-      userWithHash = this.userRepo.users.find((u) => u.id === user.id);
-    }
-
-    const hashToVerify = userWithHash?.passwordHash || '';
+    const hashToVerify = userWithHash.passwordHash;
     const isValid = await this.passwordHasher.verify(input.password, hashToVerify);
     if (!isValid) {
-      throw new DomainError('INVALID_CREDENTIALS', 'Credenciales inválidas');
+      throw new DomainError('INVALID_CREDENTIALS', 'Credenciales invalidas');
     }
 
     const accessToken = this.tokenIssuer.issueAccessToken({
-      sub: user.id,
-      tenantId: user.tenantId,
-      role: user.role,
-      email: user.email,
+      sub: userWithHash.id,
+      tenantId: userWithHash.tenantId,
+      role: userWithHash.role,
+      email: userWithHash.email,
     });
 
     const refresh = this.tokenIssuer.generateRefreshToken();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await this.refreshTokenRepo.save(user.id, refresh.hash, expiresAt);
+    await this.refreshTokenRepo.save(userWithHash.id, refresh.hash, expiresAt);
 
     const { passwordHash, ...cleanUser } = userWithHash;
 

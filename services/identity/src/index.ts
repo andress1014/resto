@@ -1,5 +1,6 @@
-import { app } from './app';
+import { createIdentityApp } from './app';
 
+const app = createIdentityApp();
 const PORT = process.env.PORT || 4001;
 
 if (process.env.NODE_ENV !== 'test') {

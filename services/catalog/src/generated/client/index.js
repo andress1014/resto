@@ -182,6 +182,10 @@ const config = {
         "fromEnvVar": null,
         "value": "windows",
         "native": true
+      },
+      {
+        "fromEnvVar": null,
+        "value": "linux-musl-openssl-3.0.x"
       }
     ],
     "previewFeatures": [],
@@ -207,8 +211,8 @@ const config = {
       }
     }
   },
-  "inlineSchema": "generator client {\n  provider = \"prisma-client-js\"\n  output   = \"../src/generated/client\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"CATALOG_DATABASE_URL\")\n}\n\nmodel Category {\n  id        String    @id @default(uuid())\n  tenantId  String // referencia LÓGICA a identity.Tenant — sin FK física\n  name      String\n  sortOrder Int       @default(0)\n  isActive  Boolean   @default(true)\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n  products  Product[]\n\n  @@unique([tenantId, name])\n  @@index([tenantId])\n}\n\nmodel Product {\n  id             String                 @id @default(uuid())\n  tenantId       String // referencia lógica, sin FK\n  categoryId     String\n  category       Category               @relation(fields: [categoryId], references: [id])\n  name           String\n  description    String?\n  price          Decimal                @db.Decimal(10, 2)\n  imageUrl       String?\n  isAvailable    Boolean                @default(true)\n  sortOrder      Int                    @default(0)\n  createdAt      DateTime               @default(now())\n  updatedAt      DateTime               @updatedAt\n  modifierGroups ProductModifierGroup[]\n\n  @@index([tenantId, categoryId])\n}\n\nmodel ModifierGroup {\n  id            String                 @id @default(uuid())\n  tenantId      String // referencia lógica, sin FK\n  name          String // ej. \"Extras\", \"Quitar ingredientes\"\n  minSelections Int                    @default(0)\n  maxSelections Int                    @default(1)\n  isRequired    Boolean                @default(false)\n  options       ModifierOption[]\n  products      ProductModifierGroup[]\n\n  @@index([tenantId])\n}\n\nmodel ModifierOption {\n  id         String        @id @default(uuid())\n  groupId    String\n  group      ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)\n  name       String // ej. \"Sin cebolla\"\n  priceDelta Decimal       @default(0) @db.Decimal(10, 2)\n  isDefault  Boolean       @default(false)\n\n  @@index([groupId])\n}\n\nmodel ProductModifierGroup {\n  productId String\n  groupId   String\n  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)\n  group     ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)\n\n  @@id([productId, groupId])\n}\n",
-  "inlineSchemaHash": "eb5e763670f0033fa80bbcbde819167d033f1485378ec12d6301816e9dc7b9f4",
+  "inlineSchema": "generator client {\n  provider      = \"prisma-client-js\"\n  output        = \"../src/generated/client\"\n  binaryTargets = [\"native\", \"linux-musl-openssl-3.0.x\"]\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"CATALOG_DATABASE_URL\")\n}\n\nmodel Category {\n  id        String    @id @default(uuid())\n  tenantId  String // referencia LÓGICA a identity.Tenant — sin FK física\n  name      String\n  sortOrder Int       @default(0)\n  isActive  Boolean   @default(true)\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n  products  Product[]\n\n  @@unique([tenantId, name])\n  @@index([tenantId])\n}\n\nmodel Product {\n  id             String                 @id @default(uuid())\n  tenantId       String // referencia lógica, sin FK\n  categoryId     String\n  category       Category               @relation(fields: [categoryId], references: [id])\n  name           String\n  description    String?\n  price          Decimal                @db.Decimal(10, 2)\n  imageUrl       String?\n  isAvailable    Boolean                @default(true)\n  sortOrder      Int                    @default(0)\n  createdAt      DateTime               @default(now())\n  updatedAt      DateTime               @updatedAt\n  modifierGroups ProductModifierGroup[]\n\n  @@index([tenantId, categoryId])\n}\n\nmodel ModifierGroup {\n  id            String                 @id @default(uuid())\n  tenantId      String // referencia lógica, sin FK\n  name          String // ej. \"Extras\", \"Quitar ingredientes\"\n  minSelections Int                    @default(0)\n  maxSelections Int                    @default(1)\n  isRequired    Boolean                @default(false)\n  options       ModifierOption[]\n  products      ProductModifierGroup[]\n\n  @@index([tenantId])\n}\n\nmodel ModifierOption {\n  id         String        @id @default(uuid())\n  groupId    String\n  group      ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)\n  name       String // ej. \"Sin cebolla\"\n  priceDelta Decimal       @default(0) @db.Decimal(10, 2)\n  isDefault  Boolean       @default(false)\n\n  @@index([groupId])\n}\n\nmodel ProductModifierGroup {\n  productId String\n  groupId   String\n  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)\n  group     ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)\n\n  @@id([productId, groupId])\n}\n",
+  "inlineSchemaHash": "60cb988aee92a29971efcd45360abb93c2ec1232c16d6cad113c409f7ad17ec4",
   "copyEngine": true
 }
 
@@ -248,6 +252,10 @@ Object.assign(exports, Prisma)
 // file annotations for bundling tools to include these files
 path.join(__dirname, "query_engine-windows.dll.node");
 path.join(process.cwd(), "src/generated/client/query_engine-windows.dll.node")
+
+// file annotations for bundling tools to include these files
+path.join(__dirname, "libquery_engine-linux-musl-openssl-3.0.x.so.node");
+path.join(process.cwd(), "src/generated/client/libquery_engine-linux-musl-openssl-3.0.x.so.node")
 // file annotations for bundling tools to include these files
 path.join(__dirname, "schema.prisma");
 path.join(process.cwd(), "src/generated/client/schema.prisma")

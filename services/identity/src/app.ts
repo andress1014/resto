@@ -1,50 +1,66 @@
 import express, { Request, Response, NextFunction } from 'express';
-import { DomainError } from '@packages/shared-types';
+import { DomainError, TenantRepository, UserRepository, RefreshTokenRepository } from '@packages/shared-types';
 import { RegisterTenantUseCaseImpl } from './application/RegisterTenant';
 import { LoginUseCaseImpl } from './application/Login';
 import { RefreshSessionUseCaseImpl } from './application/RefreshSession';
 import { InviteUserUseCaseImpl } from './application/InviteUser';
-import {
-  InMemoryTenantRepository,
-  InMemoryUserRepository,
-  InMemoryRefreshTokenRepository,
-} from './infrastructure/fakes/InMemoryIdentityAdapters';
 import { BcryptPasswordHasher } from './infrastructure/security/BcryptPasswordHasher';
 import { JwtTokenIssuer } from './infrastructure/security/JwtTokenIssuer';
+import { PrismaClient } from './generated/client';
+import { PrismaTenantRepository } from './infrastructure/prisma/PrismaTenantRepository';
+import { PrismaUserRepository } from './infrastructure/prisma/PrismaUserRepository';
+import { PrismaRefreshTokenRepository } from './infrastructure/prisma/PrismaRefreshTokenRepository';
 
-const sharedTenantRepo = new InMemoryTenantRepository();
-const sharedUserRepo = new InMemoryUserRepository();
-const sharedRefreshTokenRepo = new InMemoryRefreshTokenRepository();
-const sharedPasswordHasher = new BcryptPasswordHasher();
-const sharedTokenIssuer = new JwtTokenIssuer();
+export interface IdentityAppDeps {
+  tenantRepo?: TenantRepository;
+  userRepo?: UserRepository;
+  refreshTokenRepo?: RefreshTokenRepository;
+}
 
-export function createIdentityApp(): express.Application {
+let prismaClient: PrismaClient | null = null;
+function getPrisma(): PrismaClient {
+  if (!prismaClient) {
+    prismaClient = new PrismaClient();
+  }
+  return prismaClient;
+}
+
+export function createIdentityApp(deps?: IdentityAppDeps): express.Application {
   const app: express.Application = express();
   app.use(express.json());
 
+  const usePrisma = !deps?.tenantRepo || !deps?.userRepo || !deps?.refreshTokenRepo;
+  const prisma = usePrisma ? getPrisma() : null;
+
+  const tenantRepo = deps?.tenantRepo || new PrismaTenantRepository(prisma!);
+  const userRepo = deps?.userRepo || new PrismaUserRepository(prisma!);
+  const refreshTokenRepo = deps?.refreshTokenRepo || new PrismaRefreshTokenRepository(prisma!);
+  const sharedPasswordHasher = new BcryptPasswordHasher();
+  const sharedTokenIssuer = new JwtTokenIssuer();
+
   const registerTenant = new RegisterTenantUseCaseImpl(
-    sharedTenantRepo,
-    sharedUserRepo,
-    sharedRefreshTokenRepo,
+    tenantRepo,
+    userRepo,
+    refreshTokenRepo,
     sharedPasswordHasher,
     sharedTokenIssuer
   );
 
   const login = new LoginUseCaseImpl(
-    sharedTenantRepo,
-    sharedUserRepo,
-    sharedRefreshTokenRepo,
+    tenantRepo,
+    userRepo,
+    refreshTokenRepo,
     sharedPasswordHasher,
     sharedTokenIssuer
   );
 
   const refreshSession = new RefreshSessionUseCaseImpl(
-    sharedUserRepo,
-    sharedRefreshTokenRepo,
+    userRepo,
+    refreshTokenRepo,
     sharedTokenIssuer
   );
 
-  const inviteUser = new InviteUserUseCaseImpl(sharedUserRepo);
+  const inviteUser = new InviteUserUseCaseImpl(userRepo);
 
   // Health
   app.get('/health', (_req: Request, res: Response) => {
@@ -84,7 +100,6 @@ export function createIdentityApp(): express.Application {
     try {
       const userId = req.headers['x-user-id'] as string;
       const tenantId = req.headers['x-tenant-id'] as string;
-      const role = (req.headers['x-user-role'] as string) || 'STAFF';
 
       if (!userId || !tenantId) {
         return res.status(401).json({
@@ -95,20 +110,16 @@ export function createIdentityApp(): express.Application {
         });
       }
 
-      const user = await sharedUserRepo.findById(userId);
+      const user = await userRepo.findById(userId);
       if (user) {
         return res.status(200).json(user);
       }
 
-      return res.status(200).json({
-        id: userId,
-        tenantId,
-        email: `${userId}@resto.com`,
-        displayName: 'Usuario Resto',
-        role,
-        status: 'ACTIVE',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Usuario no encontrado',
+        },
       });
     } catch (err) {
       next(err);
@@ -194,5 +205,3 @@ export function createIdentityApp(): express.Application {
 
   return app;
 }
-
-export const app: express.Application = createIdentityApp();

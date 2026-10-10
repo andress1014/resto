@@ -13,6 +13,10 @@ import {
   GetTableSessionUseCaseImpl,
   ListTableSessionsUseCaseImpl,
 } from './application/SessionUseCases';
+import Redis from 'ioredis';
+import { TableRepository, TableSessionRepository } from '@packages/shared-types';
+import { RedisTableRepository } from './infrastructure/redis/RedisTableRepository';
+import { RedisTableSessionRepository } from './infrastructure/redis/RedisTableSessionRepository';
 import {
   InMemoryTableRepository,
   InMemoryTableSessionRepository,
@@ -21,22 +25,21 @@ import { JwtGuestTokenIssuer } from './infrastructure/security/JwtGuestTokenIssu
 import { QrcodeGeneratorAdapter } from './infrastructure/qr/QrcodeGeneratorAdapter';
 import { config } from './config';
 
-const sharedTableRepo = new InMemoryTableRepository();
-const sharedSessionRepo = new InMemoryTableSessionRepository();
-const sharedTokenIssuer = new JwtGuestTokenIssuer(config.JWT_SECRET);
-const sharedQrGenerator = new QrcodeGeneratorAdapter();
+export interface SessionAppDeps {
+  tableRepo?: TableRepository;
+  sessionRepo?: TableSessionRepository;
+}
 
-// Pre-seed tables for integration testing
-sharedTableRepo.tables.push({
-  tableId: 'table-1',
-  tenantId: 'tenant-100',
-  label: 'Mesa 1',
-  status: 'active',
-  qrKey: 'valid-key',
-  createdAt: new Date().toISOString(),
-});
+let defaultRedisClient: Redis | null = null;
 
-export function createSessionApp(): express.Application {
+function getRedisClient(): Redis {
+  if (!defaultRedisClient) {
+    defaultRedisClient = new Redis(config.REDIS_URL || 'redis://localhost:6379');
+  }
+  return defaultRedisClient;
+}
+
+export function createSessionApp(deps?: SessionAppDeps): express.Application {
   const app: express.Application = express();
   app.use(express.json());
 
@@ -45,33 +48,39 @@ export function createSessionApp(): express.Application {
     res.status(200).json({ status: 'ok' });
   });
 
-  const createTableUseCase = new CreateTableUseCaseImpl(sharedTableRepo);
+  const redis = (deps?.tableRepo && deps?.sessionRepo) ? null : getRedisClient();
+  const tableRepo = deps?.tableRepo || new RedisTableRepository(redis!);
+  const sessionRepo = deps?.sessionRepo || new RedisTableSessionRepository(redis!);
+  const tokenIssuer = new JwtGuestTokenIssuer(config.JWT_SECRET);
+  const qrGenerator = new QrcodeGeneratorAdapter();
+
+  const createTableUseCase = new CreateTableUseCaseImpl(tableRepo);
   const generateTableQrUseCase = new GenerateTableQrUseCaseImpl(
-    sharedTableRepo,
-    sharedQrGenerator,
+    tableRepo,
+    qrGenerator,
     config.PWA_BASE_URL
   );
   const rotateTableQrKeyUseCase = new RotateTableQrKeyUseCaseImpl(
-    sharedTableRepo,
-    sharedQrGenerator,
+    tableRepo,
+    qrGenerator,
     config.PWA_BASE_URL
   );
 
   const openTableSessionUseCase = new OpenTableSessionUseCaseImpl(
-    sharedSessionRepo,
-    sharedTableRepo,
-    sharedTokenIssuer,
+    sessionRepo,
+    tableRepo,
+    tokenIssuer,
     config.SESSION_TTL_SECONDS
   );
-  const closeTableSessionUseCase = new CloseTableSessionUseCaseImpl(sharedSessionRepo);
-  const getTableSessionUseCase = new GetTableSessionUseCaseImpl(sharedSessionRepo);
-  const listTableSessionsUseCase = new ListTableSessionsUseCaseImpl(sharedSessionRepo);
+  const closeTableSessionUseCase = new CloseTableSessionUseCaseImpl(sessionRepo);
+  const getTableSessionUseCase = new GetTableSessionUseCaseImpl(sessionRepo);
+  const listTableSessionsUseCase = new ListTableSessionsUseCaseImpl(sessionRepo);
 
   // Mount routers
   app.use(
     '/tables',
     createTablesRouter({
-      tableRepo: sharedTableRepo,
+      tableRepo,
       createTableUseCase,
       generateTableQrUseCase,
       rotateTableQrKeyUseCase,
@@ -94,4 +103,3 @@ export function createSessionApp(): express.Application {
   return app;
 }
 
-export const app = createSessionApp();

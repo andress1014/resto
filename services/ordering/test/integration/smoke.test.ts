@@ -1,6 +1,6 @@
 import { routeTable } from '../../../gateway/src/routes/routeTable';
 import request from 'supertest';
-import { createOrderingApp } from '../../src/app';
+import { createSeededOrderingTestApp  } from '../helpers/seededOrderingApp';
 import fs from 'fs';
 import path from 'path';
 
@@ -50,7 +50,7 @@ describe('D. Cierre de oleada (smoke) (Tests 27-30)', () => {
   });
 
   test('29. E2E por gateway: dos guests abren sesión en la misma mesa -> ambos añaden items -> uno confirma -> staff ve la Order vía GET /v1/orders con items, modificadores y total correctos; carrito vacío tras confirmar', async () => {
-    const app = createOrderingApp();
+    const app = createSeededOrderingTestApp();
     const sessionId = 'session-e2e-real';
     const tenantId = 'tenant-100';
 

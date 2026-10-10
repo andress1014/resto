@@ -1,5 +1,6 @@
-import { app } from './app';
+import { createSessionApp } from './app';
 
+const app = createSessionApp();
 const PORT = process.env.PORT || 4003;
 
 if (process.env.NODE_ENV !== 'test') {

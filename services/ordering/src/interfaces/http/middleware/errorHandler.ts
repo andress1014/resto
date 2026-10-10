@@ -13,11 +13,18 @@ export function errorHandler(
 
     if (code === 'SESSION_REQUIRED') statusCode = 401;
     else if (code === 'FORBIDDEN') statusCode = 403;
-    else if (code === 'PRODUCT_NOT_FOUND' || code === 'ORDER_NOT_FOUND' || code === 'SERVICE_CALL_NOT_FOUND') statusCode = 404;
+    else if (
+      code === 'PRODUCT_NOT_FOUND' ||
+      code === 'ORDER_NOT_FOUND' ||
+      code === 'SERVICE_CALL_NOT_FOUND' ||
+      code === 'BILL_NOT_FOUND'
+    )
+      statusCode = 404;
     else if (code === 'INVALID_STATUS_TRANSITION') statusCode = 409;
-    else if (code === 'CATALOG_UNREACHABLE') statusCode = 502;
+    else if (code === 'CATALOG_UNREACHABLE' || code === 'SESSION_CLOSE_FAILED') statusCode = 502;
     else if (
       code === 'CART_EMPTY' ||
+      code === 'BILL_EMPTY' ||
       code === 'PRODUCT_UNAVAILABLE' ||
       code === 'MODIFIER_REQUIRED' ||
       code === 'MODIFIER_INVALID' ||
