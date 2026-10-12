@@ -3,10 +3,10 @@
 > Bloque que actualizan los agentes en cada checkpoint (ver Protocolo). Notas libres debajo.
 
 <!-- team-state:begin -->
-- **fase**: frontend-lineagrafica APROBADO (pendiente decision del usuario: commit y politica de pagos)
+- **fase**: frontend-lineagrafica CERRADO y commiteado (4860e65)
 - **ronda**: 3
 - **turno**: usuario
-- **siguiente**: usuario decide commit parcial y politica de pagos; luego documentacion de cierre (01_Arquitectura, 03_Oleadas) por el orquestador
+- **siguiente**: opcional: deuda menor (h1 KDS/PWA, chips 44px, solape CartFab, anuncio KDS); decision de politica de pagos del usuario
 - **engram_pendiente**: no
 - **actualizado**: 2026-10-11
 <!-- team-state:end -->
