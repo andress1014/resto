@@ -83,7 +83,7 @@ services:
       PORT: 4003
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-oleada-0}
-      PWA_BASE_URL: http://localhost:3001
+      PWA_BASE_URL: ${PWA_BASE_URL:-http://localhost:3001}
     depends_on:
       redis:
         condition: service_healthy

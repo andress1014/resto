@@ -3,10 +3,10 @@
 > Bloque que actualizan los agentes en cada checkpoint (ver Protocolo). Notas libres debajo.
 
 <!-- team-state:begin -->
-- **fase**: frontend-lineagrafica CERRADO y commiteado (4860e65)
+- **fase**: sesion de desarrollo cerrada: frontend-lineagrafica + README de despliegue y uso (pusheado)
 - **ronda**: 3
 - **turno**: usuario
-- **siguiente**: opcional: deuda menor (h1 KDS/PWA, chips 44px, solape CartFab, anuncio KDS); decision de politica de pagos del usuario
+- **siguiente**: opcional: deuda menor del frontend (ver README seccion 11); decision de politica de pagos; despliegue segun README seccion 5
 - **engram_pendiente**: no
 - **actualizado**: 2026-10-11
 <!-- team-state:end -->
