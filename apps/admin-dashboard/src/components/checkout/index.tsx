@@ -1,21 +1,63 @@
 import React, { useState } from 'react';
-import { BillDTO, PaymentMethod, TableSessionDTO } from '@packages/shared-types';
-import { BentoCard, KpiValue } from '@packages/ui-components';
+import { BillDTO, PaymentMethod, TableSessionDTO, TableDTO } from '@packages/shared-types';
+import {
+  BentoCard,
+  KpiValue,
+  ModalConfirm,
+  Skeleton,
+  formatOrderNumber,
+  getTableDisplayName,
+  PAYMENT_METHOD_LABELS,
+  shortId,
+} from '@packages/ui-components';
 
 export interface ActiveTablesGridProps {
   sessions: TableSessionDTO[];
+  tables?: TableDTO[];
   onSelectSession?: (session: TableSessionDTO) => void;
   selectedSessionId?: string;
+  loading?: boolean;
 }
 
 export function ActiveTablesGrid({
   sessions,
+  tables,
   onSelectSession,
   selectedSessionId,
+  loading = false,
 }: ActiveTablesGridProps) {
+  if (loading) {
+    return (
+      <div
+        data-testid="checkout-skeleton"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+          gap: 'var(--bento-grid-gap)',
+        }}
+      >
+        {[1, 2, 3].map((i) => (
+          <BentoCard
+            key={i}
+            style={{
+              padding: '16px',
+              minHeight: '80px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            <Skeleton width="60%" height="24px" />
+            <Skeleton width="40%" height="16px" />
+          </BentoCard>
+        ))}
+      </div>
+    );
+  }
+
   if (!sessions || sessions.length === 0) {
     return (
-      <div style={{ padding: 'var(--bento-space-4, 16px)', color: 'var(--bento-text-muted, #666)' }}>
+      <div style={{ padding: '16px', color: 'var(--bento-text-muted)' }}>
         No hay mesas activas
       </div>
     );
@@ -26,22 +68,26 @@ export function ActiveTablesGrid({
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-        gap: 'var(--bento-space-4, 16px)',
+        gap: 'var(--bento-grid-gap)',
       }}
     >
       {sessions.map((session) => {
         const isSelected = selectedSessionId === session.sessionId;
+        const displayName = getTableDisplayName(session.tableId, tables);
         return (
           <BentoCard
             key={session.sessionId}
             interactive={Boolean(onSelectSession)}
             onClick={() => onSelectSession?.(session)}
             style={{
-              padding: 'var(--bento-space-4, 16px)',
+              padding: '16px',
               minHeight: '44px',
               border: isSelected
-                ? '2px solid var(--bento-accent, #2563eb)'
-                : '1px solid var(--bento-border, #e5e7eb)',
+                ? '2px solid var(--bento-tinta)'
+                : '1px solid var(--bento-border)',
+              backgroundColor: isSelected
+                ? 'var(--bento-hueso)'
+                : 'var(--bento-card-bg)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -56,16 +102,27 @@ export function ActiveTablesGrid({
               >
                 <rect x="3" y="3" width="18" height="18" rx="2" />
               </svg>
-              <span style={{ fontWeight: 600, fontSize: '1.1rem' }}>{session.tableId}</span>
+              <span style={{ fontWeight: 600, fontSize: '1.1rem', fontFamily: 'var(--bento-font-heading)' }}>
+                {displayName}
+              </span>
             </div>
             <div
               style={{
                 fontSize: '0.85rem',
-                color: 'var(--bento-text-muted, #666)',
+                color: 'var(--bento-text-muted)',
                 marginTop: '4px',
+                fontFamily: 'var(--bento-font-body)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '2px',
               }}
             >
-              Abierta: {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <span>
+                Abierta: {session.createdAt ? new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+              </span>
+              <span>
+                Sesión #{shortId(session.sessionId)}
+              </span>
             </div>
           </BentoCard>
         );
@@ -76,24 +133,34 @@ export function ActiveTablesGrid({
 
 export interface BillSummaryCardProps {
   bill: BillDTO;
+  tables?: TableDTO[];
   error?: string;
   onRetry?: () => void;
 }
 
-export function BillSummaryCard({ bill, error, onRetry }: BillSummaryCardProps) {
+export function BillSummaryCard({ bill, tables, error, onRetry }: BillSummaryCardProps) {
   const activeOrders = (bill.orders || []).filter((o) => o.status !== 'CANCELLED');
 
   return (
     <BentoCard
       style={{
-        padding: 'var(--bento-space-5, 20px)',
+        padding: '20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--bento-space-4, 16px)',
+        gap: '16px',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h3
+          style={{
+            margin: 0,
+            fontSize: '1.2rem',
+            fontFamily: 'var(--bento-font-heading)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
           <svg
             aria-hidden="true"
             width="20"
@@ -106,7 +173,7 @@ export function BillSummaryCard({ bill, error, onRetry }: BillSummaryCardProps) 
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <polyline points="14 2 14 8 20 8" />
           </svg>
-          Cuenta — {bill.tableId}
+          Cuenta — {getTableDisplayName(bill.tableId, tables)}
         </h3>
         <KpiValue label="Total a cobrar" value={`$${bill.total}`} tone="accent" />
       </div>
@@ -116,10 +183,11 @@ export function BillSummaryCard({ bill, error, onRetry }: BillSummaryCardProps) 
           role="alert"
           tabIndex={-1}
           style={{
-            padding: 'var(--bento-space-3, 12px)',
-            borderRadius: 'var(--bento-radius, 6px)',
-            background: 'var(--bento-error-bg, #fee2e2)',
-            color: 'var(--bento-destructive, #dc2626)',
+            padding: '12px',
+            borderRadius: 'var(--bento-inner-radius)',
+            background: 'color-mix(in srgb, var(--bento-destructive) 10%, transparent)',
+            color: 'var(--bento-destructive)',
+            border: '1px solid var(--bento-destructive)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -140,7 +208,9 @@ export function BillSummaryCard({ bill, error, onRetry }: BillSummaryCardProps) 
               <line x1="12" y1="8" x2="12" y2="12" />
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
-            <span>{error === 'SESSION_CLOSE_FAILED' ? 'Error al cerrar la sesión en el servidor' : error}</span>
+            <span style={{ fontFamily: 'var(--bento-font-body)' }}>
+              {error === 'SESSION_CLOSE_FAILED' ? 'Error al cerrar la sesión en el servidor' : error}
+            </span>
           </div>
           {onRetry && (
             <button
@@ -149,12 +219,13 @@ export function BillSummaryCard({ bill, error, onRetry }: BillSummaryCardProps) 
               style={{
                 minHeight: '44px',
                 minWidth: '44px',
-                padding: '0 12px',
-                borderRadius: 'var(--bento-radius, 6px)',
-                background: 'var(--bento-destructive, #dc2626)',
-                color: '#ffffff',
+                padding: '0 16px',
+                borderRadius: 'var(--bento-pill-radius)',
+                background: 'var(--bento-destructive)',
+                color: 'var(--bento-papel)',
                 border: 'none',
                 cursor: 'pointer',
+                fontFamily: 'var(--bento-font-body)',
                 fontWeight: 600,
               }}
             >
@@ -170,11 +241,11 @@ export function BillSummaryCard({ bill, error, onRetry }: BillSummaryCardProps) 
             key={order.id}
             style={{
               padding: '8px 12px',
-              borderBottom: '1px solid var(--bento-border, #e5e7eb)',
+              borderBottom: '1px solid var(--bento-border)',
             }}
           >
-            <div style={{ fontSize: '0.85rem', color: 'var(--bento-text-muted, #666)', marginBottom: '4px' }}>
-              Orden #{order.id.slice(-6)} • Subtotal: ${order.total}
+            <div style={{ fontSize: '0.85rem', color: 'var(--bento-text-muted)', marginBottom: '4px', fontFamily: 'var(--bento-font-body)' }}>
+              {formatOrderNumber(order.id)} • Subtotal: ${order.total}
             </div>
             {order.items.map((item) => (
               <div
@@ -183,13 +254,14 @@ export function BillSummaryCard({ bill, error, onRetry }: BillSummaryCardProps) 
                   display: 'flex',
                   justifyContent: 'space-between',
                   padding: '2px 0',
+                  fontFamily: 'var(--bento-font-body)',
                 }}
               >
                 <div>
                   <span style={{ marginRight: '6px' }}>{item.quantity}x</span>
                   <span>{item.productName}</span>
                 </div>
-                <span>${item.unitPrice * item.quantity}</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>${item.unitPrice * item.quantity}</span>
               </div>
             ))}
           </div>
@@ -209,9 +281,9 @@ export function PaymentMethodPicker({
   onSelect,
 }: PaymentMethodPickerProps) {
   const options: { method: PaymentMethod; label: string }[] = [
-    { method: 'CASH', label: 'Efectivo' },
-    { method: 'CARD', label: 'Tarjeta' },
-    { method: 'OTHER', label: 'Otro' },
+    { method: 'CASH', label: PAYMENT_METHOD_LABELS.CASH || 'Efectivo' },
+    { method: 'CARD', label: PAYMENT_METHOD_LABELS.CARD || 'Tarjeta' },
+    { method: 'OTHER', label: PAYMENT_METHOD_LABELS.OTHER || 'Otro' },
   ];
 
   return (
@@ -220,7 +292,7 @@ export function PaymentMethodPicker({
       aria-label="Método de pago"
       style={{
         display: 'flex',
-        gap: 'var(--bento-space-3, 12px)',
+        gap: '12px',
         flexWrap: 'wrap',
       }}
     >
@@ -241,15 +313,16 @@ export function PaymentMethodPicker({
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              borderRadius: 'var(--bento-radius, 6px)',
+              borderRadius: 'var(--bento-pill-radius)',
               border: isSelected
-                ? '2px solid var(--bento-accent, #2563eb)'
-                : '1px solid var(--bento-border, #e5e7eb)',
+                ? '2px solid var(--bento-tinta)'
+                : '1px solid var(--bento-border)',
               background: isSelected
-                ? 'var(--bento-card-bg-selected, #eff6ff)'
-                : 'var(--bento-card-bg, #ffffff)',
-              color: 'var(--bento-text, #111827)',
+                ? 'var(--bento-hueso)'
+                : 'var(--bento-papel)',
+              color: 'var(--bento-text)',
               cursor: 'pointer',
+              fontFamily: 'var(--bento-font-body)',
               fontWeight: isSelected ? 600 : 400,
             }}
           >
@@ -281,87 +354,57 @@ export interface ConfirmPaymentButtonProps {
 }
 
 export function ConfirmPaymentButton({
-  disabled,
-  total,
-  method,
+  disabled = false,
+  total = 0,
+  method = null,
   onConfirm,
 }: ConfirmPaymentButtonProps) {
   const [isConfirming, setIsConfirming] = useState(false);
 
-  if (isConfirming) {
-    return (
-      <div
+  return (
+    <>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsConfirming(true)}
         style={{
-          display: 'flex',
-          gap: 'var(--bento-space-3, 12px)',
-          alignItems: 'center',
-          flexWrap: 'wrap',
+          minHeight: '44px',
+          minWidth: '44px',
+          padding: '0 20px',
+          borderRadius: 'var(--bento-pill-radius)',
+          background: disabled
+            ? 'var(--bento-border)'
+            : 'var(--bento-tinta)',
+          color: disabled
+            ? 'var(--bento-text-muted)'
+            : 'var(--bento-papel)',
+          border: 'none',
+          fontFamily: 'var(--bento-font-body)',
+          fontWeight: 600,
+          cursor: disabled ? 'not-allowed' : 'pointer',
         }}
       >
-        <span style={{ fontWeight: 500 }}>
-          ¿Registrar cobro de ${total} y liberar la mesa?
-        </span>
-        <button
-          type="button"
-          onClick={() => {
-            setIsConfirming(false);
-            onConfirm();
-          }}
-          style={{
-            minHeight: '44px',
-            minWidth: '44px',
-            padding: '0 16px',
-            borderRadius: 'var(--bento-radius, 6px)',
-            background: 'var(--bento-accent-strong, #1d4ed8)',
-            color: '#ffffff',
-            border: 'none',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          Confirmar cobro y liberar mesa
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsConfirming(false)}
-          style={{
-            minHeight: '44px',
-            minWidth: '44px',
-            padding: '0 16px',
-            borderRadius: 'var(--bento-radius, 6px)',
-            background: 'var(--bento-card-bg, #ffffff)',
-            border: '1px solid var(--bento-border, #e5e7eb)',
-            color: 'var(--bento-text, #111827)',
-            cursor: 'pointer',
-          }}
-        >
-          Cancelar
-        </button>
-      </div>
-    );
-  }
+        Registrar cobro
+      </button>
 
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => setIsConfirming(true)}
-      style={{
-        minHeight: '44px',
-        minWidth: '44px',
-        padding: '0 20px',
-        borderRadius: 'var(--bento-radius, 6px)',
-        background: disabled
-          ? 'var(--bento-disabled-bg, #e5e7eb)'
-          : 'var(--bento-accent-strong, #1d4ed8)',
-        color: disabled ? 'var(--bento-disabled-text, #9ca3af)' : '#ffffff',
-        border: 'none',
-        fontWeight: 600,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-      }}
-    >
-      Registrar cobro
-    </button>
+      <ModalConfirm
+        open={isConfirming}
+        title="Confirmar cobro"
+        current={{ label: 'Cuenta actual', value: `$${total}` }}
+        proposed={{ label: 'Total a cobrar', value: `$${total}` }}
+        impacts={[
+          { label: 'Método', value: PAYMENT_METHOD_LABELS[method || 'CASH'] || 'Efectivo' },
+        ]}
+        approveLabel="Confirmar cobro"
+        rejectLabel="Cancelar"
+        onApprove={() => {
+          setIsConfirming(false);
+          onConfirm();
+        }}
+        onReject={() => setIsConfirming(false)}
+        onClose={() => setIsConfirming(false)}
+      />
+    </>
   );
 }
 
@@ -369,24 +412,26 @@ export interface PaymentSuccessCardProps {
   tableId: string;
   amount: number;
   method: PaymentMethod;
+  tables?: TableDTO[];
 }
 
 export function PaymentSuccessCard({
   tableId,
   amount,
   method,
+  tables,
 }: PaymentSuccessCardProps) {
   return (
     <BentoCard
       style={{
-        padding: 'var(--bento-space-5, 20px)',
-        border: '1px solid var(--bento-success, #16a34a)',
+        padding: '20px',
+        border: '1px solid var(--bento-success)',
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--bento-success, #16a34a)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--bento-success)' }}>
         <svg
           aria-hidden="true"
           width="24"
@@ -399,12 +444,12 @@ export function PaymentSuccessCard({
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
           <polyline points="22 4 12 14.01 9 11.01" />
         </svg>
-        <span style={{ fontWeight: 700, fontSize: '1.2rem' }}>
+        <span style={{ fontWeight: 700, fontSize: '1.2rem', fontFamily: 'var(--bento-font-heading)' }}>
           Cobro registrado. Mesa liberada.
         </span>
       </div>
-      <div style={{ color: 'var(--bento-text-muted, #666)' }}>
-        {tableId} • Total: ${amount} • Medio: {method}
+      <div style={{ color: 'var(--bento-text-muted)', fontFamily: 'var(--bento-font-body)' }}>
+        {getTableDisplayName(tableId, tables)} • Total: ${amount} • Medio: {PAYMENT_METHOD_LABELS[method] || method}
       </div>
     </BentoCard>
   );

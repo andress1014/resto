@@ -34,4 +34,23 @@ describe('Bloque 4: GuestSessionGuard hidratación y gate de montaje', () => {
 
     expect(await screen.findByTestId('protected-content')).toBeInTheDocument();
   });
+
+  test('U12: GuestSessionGuard utiliza tokens Lima & Tinta (--bento-hueso, --bento-papel, --bento-tinta) y elimina #F5F5F7', async () => {
+    const { container } = render(
+      <GuestSessionGuard>
+        <div data-testid="protected-content">Contenido Protegido</div>
+      </GuestSessionGuard>
+    );
+
+    // Esperar al mount
+    await screen.findByText('Escanea el QR de tu mesa');
+
+    // Verificar que en ningún elemento exista el valor inline #F5F5F7
+    const html = container.innerHTML;
+    expect(html).not.toContain('#F5F5F7');
+    expect(html).not.toContain('#f5f5f7');
+    expect(html).toContain('var(--bento-hueso)');
+    expect(html).toContain('var(--bento-tinta)');
+  });
 });
+

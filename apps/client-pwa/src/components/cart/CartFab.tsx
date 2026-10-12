@@ -8,14 +8,13 @@ export interface CartFabProps {
 export function CartFab({ itemCount = 0, onClick }: CartFabProps) {
   const inlineStyle: any = {
     position: 'fixed',
-    right: 'var(--bento-spacing-md)',
-    bottom: 'calc(var(--bento-spacing-md) + env(safe-area-inset-bottom))',
+    right: '16px',
+    bottom: '84px',
     minHeight: 'var(--bento-touch-target)',
     minWidth: 'var(--bento-touch-target)',
-    padding: '0 var(--bento-spacing-md)',
+    padding: '0 16px',
     background: 'var(--bento-accent-strong)',
     backgroundColor: 'var(--bento-accent-strong)',
-    '--bento-accent-strong': 'var(--bento-accent-strong)',
     color: 'var(--bento-card-bg)',
     border: 'none',
     borderRadius: 'var(--bento-card-radius)',

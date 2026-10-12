@@ -8,7 +8,7 @@ import {
   ServiceCallPanel,
   KdsLiveAnnouncer,
 } from '../src/components/kds';
-import KdsPage from '../src/app/kds/page';
+import KdsPage from '../src/app/(panel)/kds/page';
 import {
   FeatureGuard,
   FeatureFlagProviderRoot,
@@ -16,6 +16,7 @@ import {
 } from '@packages/ui-components';
 import { OrderDTO, ServiceCallDTO } from '@packages/shared-types';
 import * as realtimeModule from '../src/lib/realtime';
+import { ApiClient } from '../src/lib/api';
 import { act } from '@testing-library/react';
 
 describe('C. KDS — Admin Dashboard (Tests 14-23)', () => {
@@ -181,5 +182,97 @@ describe('C. KDS — Admin Dashboard (Tests 14-23)', () => {
     );
 
     expect(screen.getByTestId('kds-board')).toBeInTheDocument();
+  });
+
+  test('24. Estados de socket y loading: muestra indicador de conexión y maneja socket connect_error sin dejar tablero en blanco', async () => {
+    localStorage.setItem('token', 'staff-token');
+    const provider = new StaticFeatureFlagProvider({ 'kitchen-display': true });
+
+    let errorHandler: any = null;
+    let connectHandler: any = null;
+    const mockSocket = {
+      on: jest.fn((event, handler) => {
+        if (event === 'connect_error') errorHandler = handler;
+        if (event === 'connect') connectHandler = handler;
+      }),
+      disconnect: jest.fn(),
+      connected: false,
+    };
+    const spy = jest.spyOn(realtimeModule, 'connectOrdersSocket').mockReturnValue(mockSocket as any);
+
+    render(
+      <FeatureFlagProviderRoot provider={provider}>
+        <KdsPage />
+      </FeatureFlagProviderRoot>
+    );
+
+    // Initial socket status or error handling
+    act(() => {
+      errorHandler?.(new Error('Connection lost'));
+    });
+
+    // Verify error announcement or status chip is visible
+    expect(screen.getByText(/desconectado|reintentando|error de conexión/i)).toBeInTheDocument();
+
+    spy.mockRestore();
+  });
+
+  test('25. handleAdvanceStatus y handleResolveCall usan ApiClient.request para PATCH', async () => {
+    localStorage.setItem('token', 'staff-token');
+    const provider = new StaticFeatureFlagProvider({ 'kitchen-display': true });
+    const spyRequest = jest.spyOn(ApiClient, 'request').mockImplementation(async (url: string) => {
+      if (url === '/v1/orders') return { data: [sampleOrder] };
+      if (url === '/v1/service-calls') {
+        return {
+          data: [
+            {
+              callId: 'call-patch-1',
+              tenantId: 't-1',
+              sessionId: 's-1',
+              tableId: 'Mesa 3',
+              status: 'pending',
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        };
+      }
+      if (url.includes('/status')) {
+        return { data: { ...sampleOrder, status: 'IN_KITCHEN' } };
+      }
+      if (url.includes('/resolve')) {
+        return { data: { success: true } };
+      }
+      return { data: [] };
+    });
+
+    await act(async () => {
+      render(
+        <FeatureFlagProviderRoot provider={provider}>
+          <KdsPage />
+        </FeatureFlagProviderRoot>
+      );
+    });
+
+    expect(screen.getByText('Mesa 4')).toBeInTheDocument();
+    const advanceBtn = screen.getByRole('button', { name: /avanzar a/i });
+
+    await act(async () => {
+      fireEvent.click(advanceBtn);
+    });
+
+    expect(spyRequest).toHaveBeenCalledWith('/v1/orders/ord-kds-1/status', expect.objectContaining({
+      method: 'PATCH',
+    }));
+
+    const resolveBtn = screen.getByRole('button', { name: /resolver/i });
+    await act(async () => {
+      fireEvent.click(resolveBtn);
+    });
+
+    expect(spyRequest).toHaveBeenCalledWith('/v1/service-calls/call-patch-1/resolve', expect.objectContaining({
+      method: 'PATCH',
+    }));
+
+    spyRequest.mockRestore();
   });
 });

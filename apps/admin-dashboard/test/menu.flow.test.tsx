@@ -252,9 +252,256 @@ describe('Bloque 3: Menu Admin Real (Tests Rojo)', () => {
       await waitFor(() => {
         expect(categoryCreated).toBe(true);
         expect(screen.getByText('Bebidas Calientes')).toBeInTheDocument();
+        expect(screen.getByText('Nueva Categoría Creada')).toBeInTheDocument();
+        expect(screen.queryByText('Nuevo Producto Creado')).not.toBeInTheDocument();
       });
     } finally {
       global.fetch = originalFetch;
     }
   });
+
+  test('Muestra Skeleton de carga inicial mientras se obtienen los datos del menú', async () => {
+    let resolveQuery: any;
+    const fetchPromise = new Promise((resolve) => {
+      resolveQuery = resolve;
+    });
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async () => fetchPromise) as any;
+
+    try {
+      render(<MenuPage />);
+      expect(screen.getByTestId('menu-loading-skeleton')).toBeInTheDocument();
+
+      resolveQuery({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        json: async () => ({
+          data: {
+            categories: [{ id: 'cat-1', name: 'Pastas' }],
+            products: [],
+          },
+        }),
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('menu-loading-skeleton')).not.toBeInTheDocument();
+        expect(screen.getByText('Pastas')).toBeInTheDocument();
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('Renderiza los productos usando ProductCard real con KpiValue y AvailabilityToggle funcional', async () => {
+    let setAvailabilityCalled = false;
+    let toggledId = '';
+    let toggledVal: boolean | null = null;
+
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async (url: any, opts: any) => {
+      const body = opts?.body ? JSON.parse(opts.body) : {};
+      if (body.query?.includes('setProductAvailability')) {
+        setAvailabilityCalled = true;
+        toggledId = body.variables?.id;
+        toggledVal = body.variables?.isAvailable;
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => ({
+            data: {
+              setProductAvailability: {
+                id: toggledId,
+                isAvailable: toggledVal,
+              },
+            },
+          }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        json: async () => ({
+          data: {
+            categories: [{ id: 'cat-1', name: 'Pastas' }],
+            products: [
+              {
+                id: 'prod-10',
+                name: 'Spaghetti Carbonara',
+                price: 14.5,
+                isAvailable: true,
+                category: { id: 'cat-1' },
+              },
+            ],
+          },
+        }),
+      };
+    }) as any;
+
+    try {
+      render(<MenuPage />);
+      await waitFor(() => {
+        expect(screen.getByText('Spaghetti Carbonara')).toBeInTheDocument();
+      });
+
+      // Precio renderizado con KpiValue
+      expect(screen.getByText('$14.50')).toBeInTheDocument();
+
+      // AvailabilityToggle con role="switch"
+      const toggle = screen.getByRole('switch', { name: /disponible/i });
+      expect(toggle).toBeInTheDocument();
+      expect(toggle).toHaveAttribute('aria-checked', 'true');
+
+      fireEvent.click(toggle);
+
+      await waitFor(() => {
+        expect(setAvailabilityCalled).toBe(true);
+        expect(toggledId).toBe('prod-10');
+        expect(toggledVal).toBe(false);
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('Renderiza las categorías usando CategoryCard con contador de platos', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'application/json' },
+      json: async () => ({
+        data: {
+          categories: [{ id: 'cat-1', name: 'Postres' }],
+          products: [
+            { id: 'p-1', name: 'Flan', price: 5, isAvailable: true, category: { id: 'cat-1' } },
+            { id: 'p-2', name: 'Helado', price: 4, isAvailable: true, category: { id: 'cat-1' } },
+          ],
+        },
+      }),
+    })) as any;
+
+    try {
+      render(<MenuPage />);
+      await waitFor(() => {
+        expect(screen.getByText('Postres')).toBeInTheDocument();
+        expect(screen.getByText('2 platos')).toBeInTheDocument();
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('H5 & H3: Toast de éxito muestra copia según acción ("Nueva Categoría Creada" vs "Nuevo Producto Creado") y ningún botón usa warning/amber', async () => {
+    let categoryCreated = false;
+    let productCreated = false;
+
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async (url: any, opts: any) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/v1/graphql')) {
+        const body = JSON.parse(opts.body);
+        if (body.query?.includes('createCategory')) {
+          categoryCreated = true;
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => 'application/json' },
+            json: async () => ({
+              data: {
+                createCategory: { id: 'cat-new-2', name: 'Entradas Frías' },
+              },
+            }),
+          };
+        }
+        if (body.query?.includes('createProduct')) {
+          productCreated = true;
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => 'application/json' },
+            json: async () => ({
+              data: {
+                createProduct: {
+                  id: 'prod-new-1',
+                  name: 'Ceviche',
+                  price: 850,
+                  isAvailable: true,
+                  category: { id: 'cat-1' },
+                },
+              },
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => ({
+            data: {
+              categories: [{ id: 'cat-1', name: 'Entradas' }],
+              products: [],
+            },
+          }),
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as any;
+
+    try {
+      render(<MenuPage />);
+      await waitFor(() => {
+        expect(screen.getByText('Entradas')).toBeInTheDocument();
+      });
+
+      // 1. Crear categoría -> Toast 'Nueva Categoría Creada'
+      const openCatBtn = screen.getByRole('button', { name: /nueva categoría/i });
+      fireEvent.click(openCatBtn);
+
+      fireEvent.change(screen.getByLabelText(/nombre de la categoría/i), {
+        target: { value: 'Entradas Frías' },
+      });
+      const saveCatBtn = screen.getByRole('button', { name: /guardar categoría/i });
+      fireEvent.click(saveCatBtn);
+
+      await waitFor(() => {
+        expect(categoryCreated).toBe(true);
+        expect(screen.getByText('Nueva Categoría Creada')).toBeInTheDocument();
+      });
+
+      // 2. Crear producto -> Toast 'Nuevo Producto Creado'
+      const openProdBtn = screen.getByRole('button', { name: /nuevo producto/i });
+      fireEvent.click(openProdBtn);
+
+      fireEvent.change(screen.getByLabelText(/^nombre/i), { target: { value: 'Ceviche' } });
+      fireEvent.change(screen.getByLabelText(/^precio/i), { target: { value: '850' } });
+      const saveProdBtn = screen.getByRole('button', { name: /crear producto|guardar plato|guardar producto|guardar/i });
+      fireEvent.click(saveProdBtn);
+
+      await waitFor(() => {
+        expect(productCreated).toBe(true);
+        expect(screen.getByText('Nuevo Producto Creado')).toBeInTheDocument();
+      });
+
+      // 3. Barrido: ningún botón usa colores warning ni amber
+      const allButtons = screen.getAllByRole('button');
+      for (const btn of allButtons) {
+        const styleAttr = btn.getAttribute('style') || '';
+        expect(styleAttr).not.toContain('var(--bento-warning)');
+        expect(styleAttr).not.toContain('var(--bento-amber)');
+      }
+
+      // Verificación directa en el código fuente
+      const fs = require('fs');
+      const path = require('path');
+      const menuSource = fs.readFileSync(path.resolve(__dirname, '../src/app/(panel)/menu/page.tsx'), 'utf-8');
+      expect(menuSource).not.toContain('var(--bento-warning)');
+      expect(menuSource).not.toContain('var(--bento-amber)');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });
+

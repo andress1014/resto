@@ -1,18 +1,20 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { FeatureGuard } from '@packages/ui-components';
-import { BillDTO, PaymentMethod, TableSessionDTO } from '@packages/shared-types';
+import { FeatureGuard, BentoCard } from '@packages/ui-components';
+import { BillDTO, PaymentMethod, TableSessionDTO, TableDTO } from '@packages/shared-types';
 import {
   ActiveTablesGrid,
   BillSummaryCard,
   PaymentMethodPicker,
   ConfirmPaymentButton,
   PaymentSuccessCard,
-} from '../../components/checkout';
-import { ApiClient } from '../../lib/api';
+} from '../../../components/checkout';
+import { ApiClient } from '../../../lib/api';
 
 export default function CheckoutPage() {
   const [sessions, setSessions] = useState<TableSessionDTO[]>([]);
+  const [tables, setTables] = useState<TableDTO[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(true);
   const [selectedSession, setSelectedSession] = useState<TableSessionDTO | null>(null);
   const [bill, setBill] = useState<BillDTO | null>(null);
   const [method, setMethod] = useState<PaymentMethod | null>(null);
@@ -23,7 +25,21 @@ export default function CheckoutPage() {
     method: PaymentMethod;
   } | null>(null);
 
+  const fetchTables = async () => {
+    try {
+      const res = await ApiClient.request('/v1/tables');
+      if (Array.isArray(res)) {
+        setTables(res);
+      } else if (res?.data && Array.isArray(res.data)) {
+        setTables(res.data);
+      }
+    } catch {
+      // no bloqueante si falla la lista de mesas
+    }
+  };
+
   const fetchActiveSessions = async () => {
+    setLoadingSessions(true);
     try {
       const res = await ApiClient.request('/v1/sessions?status=active');
       if (Array.isArray(res)) {
@@ -32,12 +48,15 @@ export default function CheckoutPage() {
         setSessions(res.data);
       }
     } catch (err: any) {
-      setError(err.message || 'Error al obtener sesiones activas');
+      setError(err.code || err.message || 'Error al obtener sesiones activas');
+    } finally {
+      setLoadingSessions(false);
     }
   };
 
   useEffect(() => {
     fetchActiveSessions();
+    fetchTables();
   }, []);
 
   const handleSelectSession = async (session: TableSessionDTO) => {
@@ -52,7 +71,7 @@ export default function CheckoutPage() {
       const billData = res?.data || res;
       setBill(billData);
     } catch (err: any) {
-      setError(err.message || 'Error al obtener la cuenta de la mesa');
+      setError(err.code || err.message || 'Error al obtener la cuenta de la mesa');
     }
   };
 
@@ -82,7 +101,7 @@ export default function CheckoutPage() {
       setMethod(null);
       await fetchActiveSessions();
     } catch (err: any) {
-      setError(err.message || 'Error al procesar cobro');
+      setError(err.code || err.message || 'Error al procesar cobro');
     }
   };
 
@@ -96,31 +115,48 @@ export default function CheckoutPage() {
 
   return (
     <FeatureGuard flag="payments">
-      <div data-testid="checkout-content" style={{ padding: 'var(--bento-space-6, 24px)' }}>
-        <h1 style={{ marginBottom: 'var(--bento-space-4, 16px)' }}>Cierre y Liquidación de Mesas</h1>
-
+      <div data-testid="checkout-content" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {completedPayment && (
-          <div style={{ marginBottom: 'var(--bento-space-4, 16px)' }}>
+          <div style={{ marginBottom: '16px' }}>
             <PaymentSuccessCard
               tableId={completedPayment.tableId}
               amount={completedPayment.amount}
               method={completedPayment.method}
+              tables={tables}
             />
           </div>
         )}
 
-        <div style={{ marginBottom: 'var(--bento-space-6, 24px)' }}>
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>Mesas Activas</h2>
+        <BentoCard
+          style={{
+            backgroundColor: 'var(--bento-papel)',
+            padding: '24px',
+            marginBottom: '24px',
+          }}
+        >
+          <h2
+            style={{
+              fontSize: '1.1rem',
+              marginTop: 0,
+              marginBottom: '16px',
+              fontFamily: 'var(--bento-font-heading)',
+              color: 'var(--bento-text)',
+            }}
+          >
+            Mesas Activas
+          </h2>
           <ActiveTablesGrid
+            loading={loadingSessions}
             sessions={sessions}
+            tables={tables}
             selectedSessionId={selectedSession?.sessionId}
             onSelectSession={handleSelectSession}
           />
-        </div>
+        </BentoCard>
 
         {bill && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <BillSummaryCard bill={bill} error={error} onRetry={handleRetry} />
+            <BillSummaryCard bill={bill} tables={tables} error={error} onRetry={handleRetry} />
             <PaymentMethodPicker selectedMethod={method} onSelect={setMethod} />
             <ConfirmPaymentButton
               disabled={!method}

@@ -53,7 +53,7 @@ export function ModifierGroupPicker({
           gap: 'var(--bento-touch-gap)',
         }}
       >
-        {group.options.map((opt) => {
+        {(group.options || []).map((opt) => {
           const checked = selectedOptions.includes(opt.id);
           return (
             <label

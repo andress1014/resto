@@ -1,10 +1,9 @@
 # Restaurante-OS Client PWA — MASTER (Source of Truth)
 
 > REGLA DE BÓVEDA (vigente): estructura **Bento Box** en TODO módulo frontend.
-> Este MASTER corrige la salida automática del skill ("Vibrant & Block-based": efectos decorativos,
-> gaps 48px+, scroll-snap agresivo), descartada por violar la regla. Se conservan del skill:
-> paleta restaurant (rojo apetitoso + dorado), tipografía culinary (Playfair Display SC + Karla)
-> y las pautas móviles del dataset (touch targets, safe areas, gestos).
+> Este MASTER establece la paleta oficial aprobada **Lima & Tinta** (#0E100B, #D7F35C, #ECEEE6, #FAFAF6)
+> y la tipografía autorizada (Bricolage Grotesque + DM Sans), manteniendo las pautas móviles
+> de accesibilidad y usabilidad (touch targets ≥44px, safe areas, gestos).
 
 ## Contexto
 
@@ -16,7 +15,7 @@ Experiencia de CLIENTE en móvil (guest mode vía QR de mesa), NO dashboard. Mob
 1. Tarjetas radius 24px / internos 16px; sombra suave; gap 16px.
 2. Minimalista: cero decoración sin función.
 3. Texto ≥ 4.5:1; KPI grande ≥ 3:1.
-4. Acento vibrante SOLO en datos clave (precio) y CTA primario.
+4. Acento vibrante SOLO en datos clave (precio) y CTA primario. Lima (#D7F35C) SOLO como fondo con texto tinta (#0E100B) encima; nunca como texto sobre papel.
 5. Iconos SVG (Phosphor) con `aria-hidden` junto a texto; nunca emojis.
 6. Estado con texto + color, nunca solo color (disponibilidad, obligatorio).
 7. Touch targets ≥ 44px (estándar de producto; supera WCAG 24px), separación ≥ 8px.
@@ -25,19 +24,28 @@ Experiencia de CLIENTE en móvil (guest mode vía QR de mesa), NO dashboard. Mob
 ## Tokens (misma hoja `--bento-*`, valores de marca cliente)
 
 ```
---bento-page-bg:        #FEF2F2
---bento-card-bg:        #FFFFFF
+--bento-page-bg:        #ECEEE6   /* Hueso */
+--bento-card-bg:        #FAFAF6   /* Papel */
 --bento-card-radius:    24px
 --bento-inner-radius:   16px
+--bento-pill-radius:    9999px
 --bento-grid-gap:       16px
 --bento-card-shadow:    0 4px 6px rgba(0,0,0,0.05)
---bento-text:           #450A0A
---bento-text-muted:     #475569
---bento-accent:         #A16207   /* dorado; SOLO precio (KpiValue) */
---bento-accent-strong:  #DC2626   /* CTA primario + texto blanco */
+--bento-text:           #0E100B   /* Tinta: ~15:1 sobre card-bg */
+--bento-text-muted:     #52525B   /* ~5.2:1 sobre card-bg */
+--bento-accent:         #D7F35C   /* Lima: chips y acentos con texto tinta, ≥4.5:1 */
+--bento-accent-strong:  #0E100B   /* Tinta: CTA primario + texto papel */
+--bento-tinta:          #0E100B
+--bento-lima:           #D7F35C
+--bento-hueso:          #ECEEE6
+--bento-papel:          #FAFAF6
+--bento-border:         #E2E4DC
+--bento-warning:        #F59E0B
+--bento-amber:          #F59E0B
+--bento-amber-strong:   #92400E
 --bento-success:        #15803D
 --bento-destructive:    #DC2626
---bento-focus-ring:     2px solid #450A0A, offset 2px
+--bento-focus-ring:     2px solid #0E100B
 --bento-touch-target:   44px
 --bento-touch-gap:      8px
 --bento-safe-bottom:    env(safe-area-inset-bottom)
@@ -47,8 +55,8 @@ PROHIBIDO hardcodear hex/px en componentes: todo sale de estos tokens.
 
 ## Tipografía
 
-- Heading: **Playfair Display SC** (400/700). Body: **Karla** (400/500/600/700).
-- Google Fonts: `https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&family=Playfair+Display+SC:wght@400;700&display=swap`
+- Heading: **Bricolage Grotesque** (400/500/600/700). Body: **DM Sans** (400/500/600/700).
+- Google Fonts: `https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&display=swap`
 
 ## Patrones móviles
 
@@ -77,7 +85,7 @@ Reutiliza `@packages/ui-components` (`BentoGrid`, `BentoCard`, `KpiValue`, `Avai
 ## Anti-patrones (bloqueantes)
 
 - Hex/px fuera de la hoja de tokens
-- Acento dorado en texto que no sea precio
+- Acento lima como texto sobre fondo claro (lima solo como fondo de chip con texto tinta)
 - Efectos decorativos (patterns animados, duotonos sin función)
 - Emojis como iconos
 - Gestos de pantalla completa que rompan scroll/back

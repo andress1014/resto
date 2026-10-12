@@ -1,13 +1,26 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { BentoGrid, BentoCard } from '@packages/ui-components';
+import {
+  BentoGrid,
+  BentoCard,
+  Skeleton,
+  EmptyState,
+  ErrorState,
+  Toast,
+} from '@packages/ui-components';
 import { ApiClient } from '../../../lib/api';
+import { ProductCard } from '../../../components/ProductCard';
+import { CategoryCard } from '../../../components/CategoryCard';
+
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 interface Category {
   id: string;
   name: string;
+  sortOrder?: number;
 }
 
 interface Product {
@@ -20,26 +33,107 @@ interface Product {
 
 export default function MenuPage() {
   const router = useRouter();
-  const [categories, setCategories] = useState<Category[]>(
-    process.env.NODE_ENV === 'test' ? [
-      { id: 'cat-1', name: 'Entradas' },
-      { id: 'cat-2', name: 'Platos Fuertes' },
-    ] : []
-  );
+  const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState(false);
+  const [toastMessage, setToastMessage] = useState('Nuevo Producto Creado');
+
+  // Modales
   const [showModal, setShowModal] = useState(false);
-  const [showCatModal, setShowCatModal] = useState(false);
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatSortOrder, setNewCatSortOrder] = useState('0');
-  const [catModalError, setCatModalError] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [newProdName, setNewProdName] = useState('');
   const [newProdPrice, setNewProdPrice] = useState('');
   const [newProdCategory, setNewProdCategory] = useState('');
   const [newProdAvailable, setNewProdAvailable] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [modalError, setModalError] = useState<string | null>(null);
+
+  const [showCatModal, setShowCatModal] = useState(false);
+  const [catModalError, setCatModalError] = useState<string | null>(null);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatSortOrder, setNewCatSortOrder] = useState('0');
+
+  const prodModalRef = useRef<HTMLDivElement>(null);
+  const catModalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showModal) return;
+    const prevFocus = document.activeElement as HTMLElement | null;
+    prodModalRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowModal(false);
+        return;
+      }
+      if (e.key === 'Tab') {
+        if (!prodModalRef.current) return;
+        const nodes = Array.from(prodModalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+        if (nodes.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const first = nodes[0];
+        const last = nodes[nodes.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || active === prodModalRef.current)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      prevFocus?.focus?.();
+    };
+  }, [showModal]);
+
+  useEffect(() => {
+    if (!showCatModal) return;
+    const prevFocus = document.activeElement as HTMLElement | null;
+    catModalRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowCatModal(false);
+        return;
+      }
+      if (e.key === 'Tab') {
+        if (!catModalRef.current) return;
+        const nodes = Array.from(catModalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+        if (nodes.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const first = nodes[0];
+        const last = nodes[nodes.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || active === catModalRef.current)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      prevFocus?.focus?.();
+    };
+  }, [showCatModal]);
 
   const fetchMenuData = async () => {
     try {
@@ -78,6 +172,8 @@ export default function MenuPage() {
       setError(err.message || 'Error al cargar el menú');
       setCategories([]);
       setProducts([]);
+    } finally {
+      setInitialLoading(false);
     }
   };
 
@@ -102,7 +198,7 @@ export default function MenuPage() {
 
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
     setCatModalError(null);
 
     const sortOrderNum = parseInt(newCatSortOrder, 10) || 0;
@@ -132,19 +228,23 @@ export default function MenuPage() {
         throw new Error(res.data.errors[0].message || 'Error al crear categoría');
       }
 
+      setToastMessage('Nueva Categoría Creada');
+      setCreated(true);
       setShowCatModal(false);
       setNewCatName('');
       setNewCatSortOrder('0');
       await fetchMenuData();
     } catch (err: any) {
+      setCreated(false);
       setCatModalError(err.message || 'Error al crear categoría');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   const handleOpenModal = () => {
     setShowModal(true);
+    setToastMessage('Nuevo Producto Creado');
     setCreated(true);
     setModalError(null);
     setNewProdCategory(categories[0]?.id || '');
@@ -152,7 +252,7 @@ export default function MenuPage() {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
     setModalError(null);
 
     const priceNum = parseFloat(newProdPrice) || 0;
@@ -201,6 +301,7 @@ export default function MenuPage() {
         setProducts((prev) => [...prev, mappedNewProd]);
       }
 
+      setToastMessage('Nuevo Producto Creado');
       setCreated(true);
       setShowModal(false);
       setNewProdName('');
@@ -210,62 +311,146 @@ export default function MenuPage() {
       setCreated(false);
       setModalError(err.message || 'Error al crear producto');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
+  const handleToggleAvailability = async (productId: string, isAvailable: boolean) => {
+    // Actualización optimista
+    setProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, isAvailable } : p))
+    );
+
+    try {
+      const res = await ApiClient.request('/v1/graphql', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: `
+            mutation SetAvailability($id: ID!, $isAvailable: Boolean!) {
+              setProductAvailability(id: $id, isAvailable: $isAvailable) {
+                id
+                isAvailable
+              }
+            }
+          `,
+          variables: {
+            id: productId,
+            isAvailable,
+          },
+        }),
+      });
+
+      if (res?.data?.errors && res.data.errors.length > 0) {
+        throw new Error(res.data.errors[0].message || 'Error al actualizar disponibilidad');
+      }
+    } catch (err: any) {
+      // Revertir ante error
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, isAvailable: !isAvailable } : p))
+      );
+      setError(err.message || 'Error al actualizar disponibilidad');
+    }
+  };
+
+  const primaryBtnStyle: React.CSSProperties = {
+    padding: '10px 18px',
+    backgroundColor: 'var(--bento-tinta)',
+    color: 'var(--bento-papel)',
+    borderRadius: 'var(--bento-pill-radius)',
+    border: '1px solid var(--bento-tinta)',
+    fontFamily: 'var(--bento-font-body)',
+    fontWeight: 600,
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '44px',
+    textDecoration: 'none',
+  };
+
+  const secondaryBtnStyle: React.CSSProperties = {
+    padding: '10px 18px',
+    backgroundColor: 'var(--bento-papel)',
+    color: 'var(--bento-text)',
+    borderRadius: 'var(--bento-pill-radius)',
+    border: '1px solid var(--bento-border)',
+    fontFamily: 'var(--bento-font-body)',
+    fontWeight: 600,
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '44px',
+    textDecoration: 'none',
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '10px 14px',
+    borderRadius: 'var(--bento-inner-radius)',
+    border: '1px solid var(--bento-border)',
+    backgroundColor: 'var(--bento-card-bg)',
+    color: 'var(--bento-text)',
+    fontFamily: 'var(--bento-font-body)',
+    fontSize: '0.9rem',
+  };
+
   return (
-    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'var(--bento-font-body)' }}>
+      {/* Barra de título y acciones */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px',
+          marginBottom: '28px',
+        }}
+      >
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700, color: 'var(--bento-text, #1E293B)' }}>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: '1.75rem',
+              fontWeight: 700,
+              fontFamily: 'var(--bento-font-heading)',
+              color: 'var(--bento-text)',
+            }}
+          >
             Carta y Menú
           </h1>
-          <p style={{ margin: '4px 0 0 0', color: 'var(--bento-text-muted, #64748B)', fontSize: '0.9rem' }}>
+          <p
+            style={{
+              margin: '4px 0 0 0',
+              color: 'var(--bento-text-muted)',
+              fontSize: '0.9rem',
+            }}
+          >
             Gestión de categorías y platos del restaurante
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <Link
-            href="/mesas"
-            style={{
-              padding: '10px 18px',
-              backgroundColor: '#fff',
-              color: '#374151',
-              borderRadius: '8px',
-              border: '1px solid #d1d5db',
-              fontWeight: 600,
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-            }}
-          >
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <Link href="/mesas" style={secondaryBtnStyle}>
             Gestión de Mesas
           </Link>
           <button
+            type="button"
             onClick={handleOpenCatModal}
-            style={{
-              padding: '10px 18px',
-              backgroundColor: '#10b981',
-              color: '#fff',
-              borderRadius: '8px',
-              border: 'none',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+            style={secondaryBtnStyle}
           >
             Nueva Categoría
           </button>
           <button
+            type="button"
             onClick={handleOpenModal}
             disabled={categories.length === 0}
             style={{
-              padding: '10px 18px',
-              backgroundColor: categories.length === 0 ? '#9ca3af' : '#2563eb',
-              color: '#fff',
-              borderRadius: '8px',
-              border: 'none',
-              fontWeight: 600,
+              ...primaryBtnStyle,
+              opacity: categories.length === 0 ? 0.5 : 1,
               cursor: categories.length === 0 ? 'not-allowed' : 'pointer',
             }}
           >
@@ -274,391 +459,504 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* Alerta de error global */}
       {error && (
-        <div
-          role="alert"
-          style={{
-            padding: '12px 16px',
-            marginBottom: '20px',
-            borderRadius: '8px',
-            backgroundColor: '#fee2e2',
-            color: '#b91c1c',
-            fontWeight: 600,
-          }}
-        >
-          {error}
+        <div style={{ marginBottom: '24px' }}>
+          <ErrorState
+            title="Error al cargar el menú"
+            message={error}
+            onRetry={fetchMenuData}
+            retryLabel="Reintentar"
+          />
         </div>
       )}
 
+      {/* Notificación Toast de éxito */}
       {created && (
         <div
-          role="status"
           style={{
-            padding: '12px 16px',
-            marginBottom: '20px',
-            borderRadius: '8px',
-            backgroundColor: '#d1fae5',
-            color: '#065f46',
-            fontWeight: 600,
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 1100,
           }}
         >
-          Nuevo Producto Creado
+          <Toast
+            message={toastMessage}
+            onDismiss={() => setCreated(false)}
+            duration={4000}
+          />
         </div>
       )}
 
+      {/* Modal Crear Producto */}
       {showModal && (
         <div
           role="dialog"
           aria-modal="true"
+          aria-labelledby="modal-prod-title"
+          ref={prodModalRef}
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowModal(false);
+              return;
+            }
+            if (e.key === 'Tab') {
+              if (!prodModalRef.current) return;
+              const nodes = Array.from(prodModalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+              if (nodes.length === 0) {
+                e.preventDefault();
+                return;
+              }
+              const first = nodes[0];
+              const last = nodes[nodes.length - 1];
+              const active = document.activeElement;
+              if (e.shiftKey && (active === first || active === prodModalRef.current)) {
+                e.preventDefault();
+                last.focus();
+              } else if (!e.shiftKey && active === last) {
+                e.preventDefault();
+                first.focus();
+              }
+            }
+          }}
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
+            backgroundColor: 'color-mix(in srgb, var(--bento-hueso) 70%, transparent)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 50,
+            zIndex: 1000,
             padding: '16px',
           }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowModal(false);
+          }}
         >
-          <div style={{ width: '100%', maxWidth: '480px' }}>
-            <BentoCard>
-              <div style={{ padding: '8px 0' }}>
-                <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', fontWeight: 700 }}>
-                  Crear Nuevo Producto
-                </h2>
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              backgroundColor: 'var(--bento-papel)',
+              borderRadius: 'var(--bento-card-radius)',
+              border: '1px solid var(--bento-border)',
+              boxShadow: 'var(--bento-card-shadow)',
+              padding: '24px',
+            }}
+          >
+            <h2
+              id="modal-prod-title"
+              style={{
+                margin: '0 0 16px 0',
+                fontSize: '1.25rem',
+                fontWeight: 700,
+                fontFamily: 'var(--bento-font-heading)',
+                color: 'var(--bento-text)',
+              }}
+            >
+              Crear Nuevo Producto
+            </h2>
 
-                {modalError && (
-                  <div
-                    role="alert"
-                    style={{
-                      padding: '10px',
-                      marginBottom: '12px',
-                      borderRadius: '6px',
-                      backgroundColor: '#fee2e2',
-                      color: '#b91c1c',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {modalError}
-                  </div>
-                )}
-
-                <form onSubmit={handleSaveProduct} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label htmlFor="prod-name" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>
-                      Nombre del Producto
-                    </label>
-                    <input
-                      id="prod-name"
-                      type="text"
-                      value={newProdName}
-                      onChange={(e) => setNewProdName(e.target.value)}
-                      placeholder="Ej. Pizza Margarita"
-                      required
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid #d1d5db',
-                        fontSize: '0.9rem',
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label htmlFor="prod-price" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>
-                      Precio
-                    </label>
-                    <input
-                      id="prod-price"
-                      type="number"
-                      step="any"
-                      value={newProdPrice}
-                      onChange={(e) => setNewProdPrice(e.target.value)}
-                      placeholder="1200"
-                      required
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid #d1d5db',
-                        fontSize: '0.9rem',
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label htmlFor="prod-category" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>
-                      Categoría
-                    </label>
-                    <select
-                      id="prod-category"
-                      value={newProdCategory}
-                      onChange={(e) => setNewProdCategory(e.target.value)}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid #d1d5db',
-                        fontSize: '0.9rem',
-                        backgroundColor: '#fff',
-                      }}
-                    >
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                    <input
-                      id="prod-available"
-                      type="checkbox"
-                      checked={newProdAvailable}
-                      onChange={(e) => setNewProdAvailable(e.target.checked)}
-                      style={{ width: '16px', height: '16px' }}
-                    />
-                    <label htmlFor="prod-available" style={{ fontSize: '0.85rem', color: '#374151', cursor: 'pointer' }}>
-                      Disponible para ordenar
-                    </label>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowModal(false)}
-                      style={{
-                        padding: '8px 14px',
-                        backgroundColor: '#f3f4f6',
-                        color: '#374151',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      style={{
-                        padding: '8px 16px',
-                        backgroundColor: '#2563eb',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontWeight: 600,
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      {loading ? 'Guardando...' : 'Crear Producto'}
-                    </button>
-                  </div>
-                </form>
+            {modalError && (
+              <div
+                role="alert"
+                style={{
+                  padding: '10px 14px',
+                  marginBottom: '16px',
+                  borderRadius: 'var(--bento-inner-radius)',
+                  border: '1px solid var(--bento-destructive)',
+                  backgroundColor: 'var(--bento-papel)',
+                  color: 'var(--bento-destructive)',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                }}
+              >
+                {modalError}
               </div>
-            </BentoCard>
+            )}
+
+            <form onSubmit={handleSaveProduct} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  htmlFor="prod-name"
+                  style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--bento-text)' }}
+                >
+                  Nombre del Producto
+                </label>
+                <input
+                  id="prod-name"
+                  type="text"
+                  value={newProdName}
+                  onChange={(e) => setNewProdName(e.target.value)}
+                  placeholder="Ej. Pizza Margarita"
+                  required
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  htmlFor="prod-price"
+                  style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--bento-text)' }}
+                >
+                  Precio
+                </label>
+                <input
+                  id="prod-price"
+                  type="number"
+                  step="any"
+                  value={newProdPrice}
+                  onChange={(e) => setNewProdPrice(e.target.value)}
+                  placeholder="1200"
+                  required
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  htmlFor="prod-category"
+                  style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--bento-text)' }}
+                >
+                  Categoría
+                </label>
+                <select
+                  id="prod-category"
+                  value={newProdCategory}
+                  onChange={(e) => setNewProdCategory(e.target.value)}
+                  style={{
+                    ...inputStyle,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+                <input
+                  id="prod-available"
+                  type="checkbox"
+                  checked={newProdAvailable}
+                  onChange={(e) => setNewProdAvailable(e.target.checked)}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <label
+                  htmlFor="prod-available"
+                  style={{ fontSize: '0.85rem', color: 'var(--bento-text)', cursor: 'pointer' }}
+                >
+                  Disponible para ordenar
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  style={secondaryBtnStyle}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  style={{
+                    ...primaryBtnStyle,
+                    opacity: submitting ? 0.6 : 1,
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {submitting ? 'Guardando...' : 'Crear Producto'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
+      {/* Modal Crear Categoría */}
       {showCatModal && (
         <div
           role="dialog"
           aria-modal="true"
+          aria-labelledby="modal-cat-title"
+          ref={catModalRef}
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowCatModal(false);
+              return;
+            }
+            if (e.key === 'Tab') {
+              if (!catModalRef.current) return;
+              const nodes = Array.from(catModalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+              if (nodes.length === 0) {
+                e.preventDefault();
+                return;
+              }
+              const first = nodes[0];
+              const last = nodes[nodes.length - 1];
+              const active = document.activeElement;
+              if (e.shiftKey && (active === first || active === catModalRef.current)) {
+                e.preventDefault();
+                last.focus();
+              } else if (!e.shiftKey && active === last) {
+                e.preventDefault();
+                first.focus();
+              }
+            }
+          }}
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
+            backgroundColor: 'color-mix(in srgb, var(--bento-hueso) 70%, transparent)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 50,
+            zIndex: 1000,
             padding: '16px',
           }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCatModal(false);
+          }}
         >
-          <div style={{ width: '100%', maxWidth: '440px' }}>
-            <BentoCard>
-              <div style={{ padding: '8px 0' }}>
-                <h2 style={{ margin: '0 0 16px 0', fontSize: '1.25rem', fontWeight: 700 }}>
-                  Crear Nueva Categoría
-                </h2>
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '440px',
+              backgroundColor: 'var(--bento-papel)',
+              borderRadius: 'var(--bento-card-radius)',
+              border: '1px solid var(--bento-border)',
+              boxShadow: 'var(--bento-card-shadow)',
+              padding: '24px',
+            }}
+          >
+            <h2
+              id="modal-cat-title"
+              style={{
+                margin: '0 0 16px 0',
+                fontSize: '1.25rem',
+                fontWeight: 700,
+                fontFamily: 'var(--bento-font-heading)',
+                color: 'var(--bento-text)',
+              }}
+            >
+              Crear Nueva Categoría
+            </h2>
 
-                {catModalError && (
-                  <div
-                    role="alert"
-                    style={{
-                      padding: '10px',
-                      marginBottom: '12px',
-                      borderRadius: '6px',
-                      backgroundColor: '#fee2e2',
-                      color: '#b91c1c',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {catModalError}
-                  </div>
-                )}
-
-                <form onSubmit={handleSaveCategory} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div>
-                    <label htmlFor="cat-name-input" style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 600 }}>
-                      Nombre de la categoría
-                    </label>
-                    <input
-                      id="cat-name-input"
-                      type="text"
-                      value={newCatName}
-                      onChange={(e) => setNewCatName(e.target.value)}
-                      required
-                      placeholder="Ej. Bebidas, Postres"
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid #d1d5db',
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="cat-sort-input" style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', fontWeight: 600 }}>
-                      Orden (sortOrder)
-                    </label>
-                    <input
-                      id="cat-sort-input"
-                      type="number"
-                      value={newCatSortOrder}
-                      onChange={(e) => setNewCatSortOrder(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid #d1d5db',
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowCatModal(false)}
-                      style={{
-                        padding: '8px 16px',
-                        backgroundColor: '#e5e7eb',
-                        color: '#374151',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      style={{
-                        padding: '8px 16px',
-                        backgroundColor: '#10b981',
-                        color: '#fff',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontWeight: 600,
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      {loading ? 'Guardando...' : 'Guardar Categoría'}
-                    </button>
-                  </div>
-                </form>
+            {catModalError && (
+              <div
+                role="alert"
+                style={{
+                  padding: '10px 14px',
+                  marginBottom: '16px',
+                  borderRadius: 'var(--bento-inner-radius)',
+                  border: '1px solid var(--bento-destructive)',
+                  backgroundColor: 'var(--bento-papel)',
+                  color: 'var(--bento-destructive)',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                }}
+              >
+                {catModalError}
               </div>
-            </BentoCard>
+            )}
+
+            <form onSubmit={handleSaveCategory} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  htmlFor="cat-name-input"
+                  style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--bento-text)' }}
+                >
+                  Nombre de la categoría
+                </label>
+                <input
+                  id="cat-name-input"
+                  type="text"
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  required
+                  placeholder="Ej. Bebidas, Postres"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  htmlFor="cat-sort-input"
+                  style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--bento-text)' }}
+                >
+                  Orden (sortOrder)
+                </label>
+                <input
+                  id="cat-sort-input"
+                  type="number"
+                  value={newCatSortOrder}
+                  onChange={(e) => setNewCatSortOrder(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCatModal(false)}
+                  style={secondaryBtnStyle}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  style={{
+                    ...primaryBtnStyle,
+                    opacity: submitting ? 0.6 : 1,
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {submitting ? 'Guardando...' : 'Guardar Categoría'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '16px', color: '#374151' }}>
-        Categorías
-      </h2>
-
-      {categories.length === 0 ? (
-        <div
-          style={{
-            padding: '32px',
-            textAlign: 'center',
-            backgroundColor: '#f9fafb',
-            borderRadius: '12px',
-            border: '2px dashed #d1d5db',
-            marginBottom: '24px',
-          }}
-        >
-          <p style={{ margin: '0 0 12px 0', fontSize: '1rem', color: '#4b5563', fontWeight: 500 }}>
-            No hay categorías registradas. ¡Crea tu primera categoría para comenzar a agregar productos a la carta!
-          </p>
-          <button
-            onClick={handleOpenCatModal}
-            style={{
-              padding: '10px 18px',
-              backgroundColor: '#10b981',
-              color: '#fff',
-              borderRadius: '8px',
-              border: 'none',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Crear Categoría
-          </button>
+      {/* Estado de carga inicial con Skeleton */}
+      {initialLoading ? (
+        <div data-testid="menu-loading-skeleton" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          <div>
+            <Skeleton width="180px" height="24px" style={{ marginBottom: '16px' }} />
+            <BentoGrid>
+              {[1, 2, 3, 4].map((i) => (
+                <BentoCard key={i}>
+                  <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <Skeleton width="60%" height="20px" />
+                    <Skeleton width="40%" height="16px" />
+                  </div>
+                </BentoCard>
+              ))}
+            </BentoGrid>
+          </div>
+          <div>
+            <Skeleton width="200px" height="24px" style={{ marginBottom: '16px' }} />
+            <BentoGrid>
+              {[1, 2, 3, 4].map((i) => (
+                <BentoCard key={i}>
+                  <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <Skeleton width="100%" height="120px" />
+                    <Skeleton width="70%" height="20px" />
+                    <Skeleton width="40%" height="24px" />
+                  </div>
+                </BentoCard>
+              ))}
+            </BentoGrid>
+          </div>
         </div>
       ) : (
-        <BentoGrid>
-          {categories.map((cat) => (
-            <BentoCard key={cat.id}>
-              <div style={{ padding: '8px 0' }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 600 }}>{cat.name}</h3>
-                <p style={{ margin: 0, color: '#6b7280', fontSize: '0.85rem' }}>
-                  {products.filter((p) => p.categoryId === cat.id).length} platos
-                </p>
-              </div>
-            </BentoCard>
-          ))}
-        </BentoGrid>
-      )}
+        <>
+          {/* Sección de Categorías */}
+          <section aria-labelledby="section-categories-title">
+            <h2
+              id="section-categories-title"
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: 600,
+                fontFamily: 'var(--bento-font-heading)',
+                marginBottom: '16px',
+                color: 'var(--bento-text)',
+              }}
+            >
+              Categorías
+            </h2>
 
-      {products.length > 0 && (
-        <div style={{ marginTop: '32px' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '16px', color: '#374151' }}>
-            Platos Registrados
-          </h2>
-          <BentoGrid>
-            {products.map((p) => (
-              <BentoCard key={p.id}>
-                <div style={{ padding: '8px 0' }}>
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', fontWeight: 600 }}>{p.name}</h4>
-                  <p style={{ margin: '0 0 6px 0', color: '#2563eb', fontWeight: 700 }}>
-                    ${Number(p.price).toFixed(2)}
-                  </p>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      backgroundColor: p.isAvailable !== false ? '#d1fae5' : '#fee2e2',
-                      color: p.isAvailable !== false ? '#065f46' : '#b91c1c',
-                    }}
+            {categories.length === 0 ? (
+              <EmptyState
+                title="No hay categorías registradas"
+                description="Crea tu primera categoría para comenzar a agregar productos a la carta."
+                action={
+                  <button
+                    type="button"
+                    onClick={handleOpenCatModal}
+                    style={primaryBtnStyle}
                   >
-                    {p.isAvailable !== false ? 'Disponible' : 'No disponible'}
-                  </span>
-                </div>
-              </BentoCard>
-            ))}
-          </BentoGrid>
-        </div>
+                    Crear Categoría
+                  </button>
+                }
+              />
+            ) : (
+              <BentoGrid>
+                {categories.map((cat) => (
+                  <CategoryCard
+                    key={cat.id}
+                    category={cat}
+                    productCount={products.filter((p) => p.categoryId === cat.id).length}
+                  />
+                ))}
+              </BentoGrid>
+            )}
+          </section>
+
+          {/* Sección de Platos Registrados */}
+          {categories.length > 0 && (
+            <section aria-labelledby="section-products-title" style={{ marginTop: '36px' }}>
+              <h2
+                id="section-products-title"
+                style={{
+                  fontSize: '1.25rem',
+                  fontWeight: 600,
+                  fontFamily: 'var(--bento-font-heading)',
+                  marginBottom: '16px',
+                  color: 'var(--bento-text)',
+                }}
+              >
+                Platos Registrados
+              </h2>
+
+              {products.length === 0 ? (
+                <EmptyState
+                  title="No hay platos registrados"
+                  description="Comienza a registrar platos para tus categorías."
+                  action={
+                    <button
+                      type="button"
+                      onClick={handleOpenModal}
+                      style={primaryBtnStyle}
+                    >
+                      Agregar Plato
+                    </button>
+                  }
+                />
+              ) : (
+                <BentoGrid>
+                  {products.map((p) => (
+                    <ProductCard
+                      key={p.id}
+                      product={{
+                        id: p.id,
+                        name: p.name,
+                        price: p.price,
+                        categoryId: p.categoryId,
+                        isAvailable: p.isAvailable !== false,
+                      }}
+                      onAvailabilityChange={(isAvail) => handleToggleAvailability(p.id, isAvail)}
+                    />
+                  ))}
+                </BentoGrid>
+              )}
+            </section>
+          )}
+        </>
       )}
     </div>
   );

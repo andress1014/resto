@@ -11,8 +11,12 @@ export interface CartSheetProps {
   onConfirm?: () => Promise<void>;
   error?: string | null;
   onUpdateQuantity?: (cartItemId: string, quantity: number) => void;
+  onRemoveItem?: (cartItemId: string) => void;
   isConfirming?: boolean;
 }
+
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function CartSheet({
   isOpen,
@@ -21,6 +25,7 @@ export function CartSheet({
   onConfirm,
   error,
   onUpdateQuantity,
+  onRemoveItem,
   isConfirming,
 }: CartSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -37,6 +42,40 @@ export function CartSheet({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      if (e.key === 'Tab') {
+        if (!dialogRef.current) return;
+        const nodes = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+        if (nodes.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const first = nodes[0];
+        const last = nodes[nodes.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || active === dialogRef.current)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) {
     return null;
   }
@@ -50,6 +89,37 @@ export function CartSheet({
       aria-modal="true"
       ref={dialogRef}
       tabIndex={-1}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+          return;
+        }
+        if (e.key === 'Tab') {
+          if (!dialogRef.current) return;
+          const nodes = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+          if (nodes.length === 0) {
+            e.preventDefault();
+            return;
+          }
+          const first = nodes[0];
+          const last = nodes[nodes.length - 1];
+          const active = document.activeElement;
+          if (e.shiftKey && (active === first || active === dialogRef.current)) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && active === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -143,6 +213,7 @@ export function CartSheet({
                 key={item.cartItemId}
                 item={item}
                 onUpdateQuantity={(qty) => onUpdateQuantity?.(item.cartItemId, qty)}
+                onRemove={() => (onRemoveItem ? onRemoveItem(item.cartItemId) : onUpdateQuantity?.(item.cartItemId, 0))}
               />
             ))
           )}

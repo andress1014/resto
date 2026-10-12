@@ -9,7 +9,7 @@ export interface ProductListCardProps {
 
 export function ProductListCard({ product, onSelect }: ProductListCardProps) {
   return (
-    <BentoCard onClick={onSelect} interactive style={{ padding: 'var(--bento-spacing-md)' }}>
+    <BentoCard onClick={onSelect} interactive>
       {product.imageUrl && (
         <div style={{ marginBottom: 'var(--bento-spacing-sm)' }}>
           <img

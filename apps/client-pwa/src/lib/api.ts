@@ -93,6 +93,22 @@ export class PwaApiClient {
     }
   }
 
+  static clearAuth(): void {
+    this.guestToken = null;
+    this.session = null;
+  }
+
+  static checkAuthExpired(res: { status: number }): void {
+    if (res.status === 401) {
+      PwaApiClient.guestToken = null;
+      PwaApiClient.session = null;
+      const err: any = new Error('Tu sesión ha expirado. Por favor, escanea nuevamente el código QR de tu mesa.');
+      err.status = 401;
+      err.code = 'UNAUTHORIZED';
+      throw err;
+    }
+  }
+
   static async openSession(params: OpenSessionParams): Promise<OpenSessionResult> {
     const baseUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:4000';
     const res = await fetch(`${baseUrl}/v1/sessions/open`, {
@@ -128,11 +144,34 @@ export class PwaApiClient {
         query: `
           query GetMenu {
             categories { id name sortOrder isActive }
-            products { id name price isAvailable imageUrl sortOrder category { id } modifierGroups { id name } }
+            products {
+              id
+              name
+              price
+              isAvailable
+              imageUrl
+              sortOrder
+              category { id }
+              modifierGroups {
+                id
+                name
+                minSelections
+                maxSelections
+                isRequired
+                options {
+                  id
+                  name
+                  priceDelta
+                  isDefault
+                }
+              }
+            }
           }
         `,
       })
     });
+
+    PwaApiClient.checkAuthExpired(res);
 
     const data = await res.json();
 
@@ -141,6 +180,21 @@ export class PwaApiClient {
       ...p,
       categoryId: p.categoryId ?? p.category?.id,
       tenantId,
+      modifierGroups: (p.modifierGroups || []).map((mg: any) => ({
+        ...mg,
+        tenantId: mg.tenantId || tenantId,
+        minSelections: mg.minSelections ?? 0,
+        maxSelections: mg.maxSelections ?? 0,
+        isRequired: Boolean(mg.isRequired),
+        options: Array.isArray(mg.options)
+          ? mg.options.map((opt: any) => ({
+              ...opt,
+              groupId: opt.groupId || mg.id,
+              isDefault: Boolean(opt.isDefault),
+              priceDelta: Number(opt.priceDelta || 0),
+            }))
+          : [],
+      })),
     }));
 
     return {
@@ -157,6 +211,7 @@ export class PwaApiClient {
         ...(PwaApiClient.guestToken ? { Authorization: `Bearer ${PwaApiClient.guestToken}` } : {}),
       },
     });
+    PwaApiClient.checkAuthExpired(res);
     if (!res.ok) {
       const err = new Error(await res.text());
       (err as any).status = res.status;
@@ -192,9 +247,48 @@ export class PwaApiClient {
         ...(params.display ? { display: params.display } : {}),
       }),
     });
+    PwaApiClient.checkAuthExpired(res);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       const err = new Error(data.message || 'Error al agregar al carrito');
+      (err as any).status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
+  static async updateCartItemQuantity(cartItemId: string, quantity: number): Promise<CartDTO> {
+    const baseUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:4000';
+    const res = await fetch(`${baseUrl}/v1/cart/items/${encodeURIComponent(cartItemId)}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(PwaApiClient.guestToken ? { Authorization: `Bearer ${PwaApiClient.guestToken}` } : {}),
+      },
+      body: JSON.stringify({ quantity }),
+    });
+    PwaApiClient.checkAuthExpired(res);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const err = new Error(data.message || 'Error al actualizar cantidad');
+      (err as any).status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
+  static async removeCartItem(cartItemId: string): Promise<CartDTO> {
+    const baseUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:4000';
+    const res = await fetch(`${baseUrl}/v1/cart/items/${encodeURIComponent(cartItemId)}`, {
+      method: 'DELETE',
+      headers: {
+        ...(PwaApiClient.guestToken ? { Authorization: `Bearer ${PwaApiClient.guestToken}` } : {}),
+      },
+    });
+    PwaApiClient.checkAuthExpired(res);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const err = new Error(data.message || 'Error al eliminar item del carrito');
       (err as any).status = res.status;
       throw err;
     }
@@ -211,6 +305,7 @@ export class PwaApiClient {
       },
       body: JSON.stringify({ tableId }),
     });
+    PwaApiClient.checkAuthExpired(res);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       const err = new Error(data.message || 'Error al confirmar pedido');
@@ -234,6 +329,7 @@ export class PwaApiClient {
         method: params.method || 'CASH',
       }),
     });
+    PwaApiClient.checkAuthExpired(res);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       const err = new Error(data.message || 'Error en checkout');
@@ -256,6 +352,7 @@ export class PwaApiClient {
         note: 'Cuenta por favor',
       }),
     });
+    PwaApiClient.checkAuthExpired(res);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       const err = new Error(data.message || data.error?.message || 'Error al solicitar la cuenta');
@@ -263,5 +360,44 @@ export class PwaApiClient {
       throw err;
     }
     return res.json();
+  }
+
+  static async getOrder(orderId: string): Promise<any> {
+    const baseUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:4000';
+    const res = await fetch(`${baseUrl}/v1/orders/${encodeURIComponent(orderId)}`, {
+      method: 'GET',
+      headers: {
+        ...(PwaApiClient.guestToken ? { Authorization: `Bearer ${PwaApiClient.guestToken}` } : {}),
+      },
+    });
+    PwaApiClient.checkAuthExpired(res);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const err = new Error(data.message || 'Error al obtener orden');
+      (err as any).status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
+  static async request(url: string, options: any = {}): Promise<any> {
+    const baseUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:4000';
+    const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(PwaApiClient.guestToken ? { Authorization: `Bearer ${PwaApiClient.guestToken}` } : {}),
+      ...(options.headers || {}),
+    };
+    const res = await fetch(fullUrl, { ...options, headers });
+    PwaApiClient.checkAuthExpired(res);
+    const isJson = res.headers.get('content-type')?.includes('application/json');
+    const data = isJson ? await res.json() : await res.text();
+    if (!res.ok) {
+      const error: any = new Error(data?.message || 'Error en la petición');
+      error.status = res.status;
+      error.code = data?.code || 'UNKNOWN';
+      throw error;
+    }
+    return { status: res.status, data };
   }
 }

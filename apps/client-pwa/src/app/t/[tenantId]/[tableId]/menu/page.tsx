@@ -1,11 +1,21 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { PwaApiClient, MenuResult } from '../../../../../lib/api';
 import { GuestSessionGuard } from '../../../../../components/GuestSessionGuard';
 import { ProductListCard } from '../../../../../components/ProductListCard';
 import { ProductDetailSheet } from '../../../../../components/ProductDetailSheet';
 import { CartFab, CartSheet, OrderConfirmationCard } from '../../../../../components/cart';
-import { BentoGrid, FeatureGuard } from '@packages/ui-components';
+import {
+  BentoGrid,
+  BentoCard,
+  FeatureGuard,
+  TabsPill,
+  TabsPillItem,
+  Skeleton,
+  EmptyState,
+  ErrorState,
+  StatusChip,
+} from '@packages/ui-components';
 import { ProductDTO, CategoryDTO, CartDTO } from '@packages/shared-types';
 
 export interface ClientMenuPageProps {
@@ -15,9 +25,12 @@ export interface ClientMenuPageProps {
   };
 }
 
+const ALL_CATEGORIES_ID = 'all';
+
 export default function ClientMenuPage({ params }: ClientMenuPageProps) {
   const [categories, setCategories] = useState<CategoryDTO[]>([]);
   const [products, setProducts] = useState<ProductDTO[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORIES_ID);
   const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(null);
   const [cart, setCart] = useState<CartDTO | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -28,34 +41,115 @@ export default function ClientMenuPage({ params }: ClientMenuPageProps) {
   const [requestingBill, setRequestingBill] = useState<boolean>(false);
   const [billError, setBillError] = useState<string | null>(null);
 
-  const refreshCart = async () => {
+  // Estados completos de carga y error del menú
+  const [loadingMenu, setLoadingMenu] = useState<boolean>(true);
+  const [menuError, setMenuError] = useState<string | null>(null);
+
+  const refreshCart = useCallback(async () => {
     try {
       const currentCart = await PwaApiClient.getCart();
       setCart(currentCart);
     } catch {
       // Ignorar error silencioso de carrito vacío
     }
-  };
+  }, []);
 
-  useEffect(() => {
+  const loadMenu = useCallback(async () => {
     if (!PwaApiClient.guestToken) {
+      setLoadingMenu(false);
       return;
     }
 
-    let isMounted = true;
-    PwaApiClient.fetchMenu(params.tenantId).then((res: MenuResult) => {
-      if (isMounted) {
+    setLoadingMenu(true);
+    setMenuError(null);
+
+    return PwaApiClient.fetchMenu(params.tenantId)
+      .then((res: MenuResult) => {
         setCategories(res.categories || []);
         setProducts(res.products || []);
-      }
-    });
+      })
+      .catch((err: any) => {
+        setMenuError(err.message || 'Error al cargar el menú. Por favor, reintenta.');
+      })
+      .finally(() => {
+        setLoadingMenu(false);
+      });
+  }, [params.tenantId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!PwaApiClient.guestToken) {
+      setLoadingMenu(false);
+      return;
+    }
+
+    setLoadingMenu(true);
+    setMenuError(null);
+
+    PwaApiClient.fetchMenu(params.tenantId)
+      .then((res: MenuResult) => {
+        if (isMounted) {
+          setCategories(res.categories || []);
+          setProducts(res.products || []);
+        }
+      })
+      .catch((err: any) => {
+        if (isMounted) {
+          setMenuError(err.message || 'Error al cargar el menú. Por favor, reintenta.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoadingMenu(false);
+        }
+      });
 
     refreshCart();
 
     return () => {
       isMounted = false;
     };
-  }, [params.tenantId]);
+  }, [params.tenantId, refreshCart]);
+
+  // Polling silencioso cada ~5s del carrito
+  useEffect(() => {
+    if (!PwaApiClient.guestToken) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      refreshCart();
+    }, 5000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [refreshCart]);
+
+  const handleUpdateQuantity = async (cartItemId: string, quantity: number) => {
+    if (quantity <= 0) {
+      await handleRemoveItem(cartItemId);
+      return;
+    }
+    try {
+      setCartError(null);
+      const updatedCart = await PwaApiClient.updateCartItemQuantity(cartItemId, quantity);
+      setCart(updatedCart);
+    } catch (err: any) {
+      setCartError(err.message || 'Error al actualizar cantidad');
+    }
+  };
+
+  const handleRemoveItem = async (cartItemId: string) => {
+    try {
+      setCartError(null);
+      const updatedCart = await PwaApiClient.removeCartItem(cartItemId);
+      setCart(updatedCart);
+    } catch (err: any) {
+      setCartError(err.message || 'Error al eliminar item');
+    }
+  };
 
   const handleAddToCart = async (product: ProductDTO, modifiers: any[], quantity: number) => {
     try {
@@ -105,24 +199,71 @@ export default function ClientMenuPage({ params }: ClientMenuPageProps) {
     }
   };
 
+  const handleGuestCheckout = async () => {
+    if (!PwaApiClient.session?.sessionId) return;
+    try {
+      await PwaApiClient.checkout({
+        sessionId: PwaApiClient.session.sessionId,
+        tableId: params.tableId,
+        method: 'CASH',
+      });
+    } catch {
+      // Ignorar error transitorio en modo guest
+    }
+  };
+
   const totalItemsCount = (cart?.items || []).reduce((acc, it) => acc + it.quantity, 0);
+
+  // Helper para resolver la categoría de un producto tanto si viene como categoryId o como objeto anidado category
+  const getProductCategoryId = useCallback((p: ProductDTO): string | undefined => {
+    return p.categoryId || (p as any).category?.id;
+  }, []);
+
+  // Tabs de categorías con conteo y opción 'Todas'
+  const categoryTabs: TabsPillItem[] = useMemo(() => {
+    if (categories.length === 0) {
+      return [];
+    }
+    return [
+      { id: ALL_CATEGORIES_ID, label: 'Todas', count: products.length },
+      ...categories.map((c) => ({
+        id: c.id,
+        label: c.name,
+        count: products.filter((p) => getProductCategoryId(p) === c.id).length,
+      })),
+    ];
+  }, [categories, products, getProductCategoryId]);
+
+  // Filtrado reactivo de productos
+  const filteredProducts = useMemo(() => {
+    if (selectedCategory === ALL_CATEGORIES_ID) {
+      return products;
+    }
+    return products.filter((p) => getProductCategoryId(p) === selectedCategory);
+  }, [products, selectedCategory, getProductCategoryId]);
 
   return (
     <GuestSessionGuard>
       <main
         style={{
-          padding: 'var(--bento-spacing-md)',
+          width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+          padding: 'var(--bento-spacing-md, 16px)',
           display: 'flex',
           flexDirection: 'column',
-          gap: 'var(--bento-spacing-md)',
+          gap: 'var(--bento-spacing-md, 16px)',
           minHeight: '100vh',
-          backgroundColor: 'var(--bento-page-bg)',
-          paddingBottom: 'calc(var(--bento-touch-target) + var(--bento-spacing-xl))',
+          backgroundColor: 'var(--bento-hueso)',
+          paddingBottom: 'calc(140px + env(safe-area-inset-bottom, 0px))',
         }}
       >
         {confirmedOrder && (
-          <div style={{ marginBottom: 'var(--bento-spacing-sm)' }}>
-            <OrderConfirmationCard order={confirmedOrder} />
+          <div style={{ width: '100%', boxSizing: 'border-box', marginBottom: 'var(--bento-spacing-sm, 8px)' }}>
+            <OrderConfirmationCard
+              order={confirmedOrder}
+              onOrderUpdate={(updated) => setConfirmedOrder(updated)}
+            />
           </div>
         )}
 
@@ -130,16 +271,27 @@ export default function ClientMenuPage({ params }: ClientMenuPageProps) {
           <div
             role="status"
             style={{
+              width: '100%',
+              boxSizing: 'border-box',
               padding: '16px',
               borderRadius: 'var(--bento-card-radius)',
-              backgroundColor: 'var(--bento-card-bg)',
-              color: 'var(--bento-success, #16a34a)',
+              backgroundColor: 'var(--bento-papel)',
+              border: '1px solid var(--bento-border)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '8px',
+              color: 'var(--bento-text)',
               fontWeight: 700,
               textAlign: 'center',
               boxShadow: 'var(--bento-card-shadow)',
+              fontFamily: 'var(--bento-font-body)',
             }}
           >
-            La cuenta fue solicitada, un mesero pasará por tu mesa.
+            <div data-testid="bill-status-chip">
+              <StatusChip label="Cuenta solicitada" tone="ok" />
+            </div>
+            <span>La cuenta fue solicitada, un mesero pasará por tu mesa.</span>
           </div>
         )}
 
@@ -147,84 +299,207 @@ export default function ClientMenuPage({ params }: ClientMenuPageProps) {
           <div
             role="alert"
             style={{
+              width: '100%',
+              boxSizing: 'border-box',
               padding: '12px 16px',
               borderRadius: 'var(--bento-card-radius)',
-              backgroundColor: '#fee2e2',
-              color: '#b91c1c',
+              backgroundColor: 'var(--bento-papel)',
+              border: '1px solid var(--bento-destructive)',
+              color: 'var(--bento-destructive)',
               fontWeight: 600,
               textAlign: 'center',
+              fontFamily: 'var(--bento-font-body)',
             }}
           >
             {billError}
           </div>
         )}
 
-        <header
-          role="tablist"
-          aria-label="Categorías"
+        {/* Estados de error, carga, vacío y catálogo */}
+        {menuError ? (
+          <section aria-label="Error al cargar menú">
+            <ErrorState
+              title="No pudimos cargar el menú"
+              message={menuError}
+              onRetry={loadMenu}
+              retryLabel="Reintentar"
+            />
+          </section>
+        ) : (
+          <>
+            {loadingMenu ? (
+              <div
+                data-testid="menu-loading"
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  gap: '8px',
+                  overflowX: 'auto',
+                  paddingBottom: '4px',
+                }}
+              >
+                <Skeleton width="80px" height="36px" radius="var(--bento-pill-radius)" />
+                <Skeleton width="100px" height="36px" radius="var(--bento-pill-radius)" />
+                <Skeleton width="90px" height="36px" radius="var(--bento-pill-radius)" />
+              </div>
+            ) : categoryTabs.length > 0 ? (
+              <header
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  overflowX: 'auto',
+                  paddingBottom: '4px',
+                }}
+              >
+                <TabsPill
+                  tabs={categoryTabs}
+                  value={selectedCategory}
+                  onChange={(id) => setSelectedCategory(id)}
+                  ariaLabel="Categorías"
+                />
+              </header>
+            ) : null}
+
+            <section
+              aria-label="Catálogo"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+              }}
+            >
+              {loadingMenu ? (
+                <BentoGrid cols={2} style={{ width: '100%', boxSizing: 'border-box' }}>
+                  {[1, 2, 3, 4].map((n) => (
+                    <BentoCard
+                      key={n}
+                      style={{
+                        backgroundColor: 'var(--bento-papel)',
+                        padding: 'var(--bento-spacing-md, 16px)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px',
+                      }}
+                    >
+                      <Skeleton width="100%" height="90px" radius="var(--bento-inner-radius)" />
+                      <Skeleton width="75%" height="18px" radius="4px" />
+                      <Skeleton width="45%" height="16px" radius="4px" />
+                    </BentoCard>
+                  ))}
+                </BentoGrid>
+              ) : products.length === 0 ? (
+                <EmptyState
+                  title="No hay platos disponibles"
+                  description="En este momento no hay productos en la carta."
+                />
+              ) : filteredProducts.length === 0 ? (
+                <EmptyState
+                  title="No hay platos en esta categoría"
+                  description="Prueba seleccionando otra categoría para ver más opciones."
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCategory(ALL_CATEGORIES_ID)}
+                      style={{
+                        minHeight: 'var(--bento-touch-target)',
+                        padding: '0 16px',
+                        borderRadius: 'var(--bento-pill-radius)',
+                        backgroundColor: 'var(--bento-tinta)',
+                        color: 'var(--bento-papel)',
+                        border: 'none',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--bento-font-body)',
+                      }}
+                    >
+                      Ver todos los platos
+                    </button>
+                  }
+                />
+              ) : (
+                <BentoGrid cols={2} style={{ width: '100%', boxSizing: 'border-box' }}>
+                  {filteredProducts.map((p) => (
+                    <ProductListCard
+                      key={p.id}
+                      product={p}
+                      onSelect={() => setSelectedProduct(p)}
+                    />
+                  ))}
+                </BentoGrid>
+              )}
+            </section>
+          </>
+        )}
+
+        <footer
           style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            zIndex: 30,
+            boxSizing: 'border-box',
+            padding: '12px 16px',
+            paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
+            backgroundColor: 'var(--bento-hueso)',
+            borderTop: '1px solid var(--bento-border)',
             display: 'flex',
-            gap: 'var(--bento-touch-gap)',
-            overflowX: 'auto',
+            flexDirection: 'column',
+            gap: '8px',
           }}
         >
-          {categories.map((c) => (
-            <div
-              key={c.id}
-              role="tab"
-              data-component="bento-card"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: 'var(--bento-spacing-xs) var(--bento-spacing-sm)',
-                minHeight: 'var(--bento-touch-target)',
-                borderRadius: 'var(--bento-card-radius)',
-                backgroundColor: 'var(--bento-card-bg)',
-                color: 'var(--bento-text)',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {c.name}
-            </div>
-          ))}
-        </header>
+          {/* B7: Pedir la cuenta con estados solicitando / solicitada / error */}
+          <section aria-label="Cuenta" style={{ width: '100%', boxSizing: 'border-box' }}>
+            {!billRequested && (
+              <button
+                type="button"
+                onClick={handleRequestBill}
+                disabled={requestingBill}
+                style={{
+                  minHeight: 'var(--bento-touch-target, 44px)',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  backgroundColor: 'var(--bento-tinta)',
+                  color: 'var(--bento-papel)',
+                  border: '1px solid var(--bento-tinta)',
+                  borderRadius: 'var(--bento-pill-radius)',
+                  fontWeight: 600,
+                  cursor: requestingBill ? 'not-allowed' : 'pointer',
+                  fontFamily: 'var(--bento-font-body)',
+                }}
+              >
+                {requestingBill ? 'Solicitando cuenta...' : 'Pedir la cuenta'}
+              </button>
+            )}
+          </section>
 
-        <section aria-label="Catálogo">
-          <BentoGrid cols={2}>
-            {products.map((p) => (
-              <ProductListCard
-                key={p.id}
-                product={p}
-                onSelect={() => setSelectedProduct(p)}
-              />
-            ))}
-          </BentoGrid>
-        </section>
-
-        <footer style={{ marginTop: 'auto', paddingTop: 'var(--bento-spacing-md)' }}>
-          <FeatureGuard flag="payments">
-            <button
-              type="button"
-              onClick={handleRequestBill}
-              disabled={requestingBill || billRequested}
-              style={{
-                minHeight: 'var(--bento-touch-target)',
-                width: '100%',
-                backgroundColor: billRequested ? 'var(--bento-card-bg)' : 'var(--bento-accent)',
-                color: billRequested ? 'var(--bento-text-muted)' : '#ffffff',
-                borderRadius: 'var(--bento-card-radius)',
-                border: 'none',
-                fontWeight: 600,
-                cursor: requestingBill || billRequested ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {requestingBill
-                ? 'Solicitando cuenta...'
-                : billRequested
-                ? 'Cuenta Solicitada'
-                : 'Pedir la cuenta'}
-            </button>
-          </FeatureGuard>
+          {/* B8: Pago guest tras FeatureGuard payments */}
+          <section aria-label="Pago" style={{ width: '100%', boxSizing: 'border-box' }}>
+            <FeatureGuard flag="payments">
+              <button
+                type="button"
+                onClick={handleGuestCheckout}
+                style={{
+                  minHeight: 'var(--bento-touch-target, 44px)',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  backgroundColor: 'var(--bento-lima)',
+                  color: 'var(--bento-tinta)',
+                  border: '1px solid var(--bento-tinta)',
+                  borderRadius: 'var(--bento-pill-radius)',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--bento-font-body)',
+                }}
+              >
+                Pagar
+              </button>
+            </FeatureGuard>
+          </section>
         </footer>
 
         <ProductDetailSheet
@@ -246,6 +521,8 @@ export default function ClientMenuPage({ params }: ClientMenuPageProps) {
           onConfirm={handleConfirmOrder}
           error={cartError}
           isConfirming={isConfirming}
+          onUpdateQuantity={handleUpdateQuantity}
+          onRemoveItem={handleRemoveItem}
         />
       </main>
     </GuestSessionGuard>

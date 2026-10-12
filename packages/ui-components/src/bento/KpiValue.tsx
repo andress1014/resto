@@ -9,9 +9,10 @@ export interface KpiValueProps {
 }
 
 export function KpiValue({ value, label, tone = 'neutral', className, style }: KpiValueProps) {
+  const isAccent = tone === 'accent';
   const toneColor =
     tone === 'accent'
-      ? 'var(--bento-accent)'
+      ? 'var(--bento-text)'
       : tone === 'success'
       ? 'var(--bento-success)'
       : tone === 'destructive'
@@ -29,8 +30,26 @@ export function KpiValue({ value, label, tone = 'neutral', className, style }: K
         ...style,
       }}
     >
-      <span style={{ color: 'var(--bento-text-muted)' }}>{label}</span>
-      <span style={{ fontWeight: 700, color: toneColor }}>{value}</span>
+      <span style={{ color: 'var(--bento-text-muted)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+      <span
+        style={{
+          fontWeight: 700,
+          color: toneColor,
+          fontFamily: 'var(--bento-font-heading)',
+          fontVariantNumeric: 'tabular-nums',
+          ...(isAccent
+            ? {
+                backgroundColor: 'var(--bento-accent)',
+                padding: '2px 8px',
+                borderRadius: 'var(--bento-inner-radius)',
+                display: 'inline-block',
+                width: 'fit-content',
+              }
+            : {}),
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

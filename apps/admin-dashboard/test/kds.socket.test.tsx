@@ -1,7 +1,7 @@
-import React from 'react';
+﻿import React from 'react';
 import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
-import KdsPage from '../src/app/kds/page';
+import KdsPage from '../src/app/(panel)/kds/page';
 import { ApiClient } from '../src/lib/api';
 import * as realtimeModule from '../src/lib/realtime';
 import { FeatureFlagProviderRoot, StaticFeatureFlagProvider } from '@packages/ui-components';

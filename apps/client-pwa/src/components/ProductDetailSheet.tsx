@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { ProductDTO } from '@packages/shared-types';
 import { ModifierGroupPicker } from './ModifierGroupPicker';
+import { QuantityStepper } from './cart/QuantityStepper';
 
 export interface ProductDetailSheetProps {
   product: ProductDTO | null;
@@ -8,6 +9,9 @@ export interface ProductDetailSheetProps {
   onClose: () => void;
   onAddToCart?: (product: ProductDTO, selectedModifiers: any[], quantity: number) => void;
 }
+
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function ProductDetailSheet({
   product,
@@ -33,6 +37,51 @@ export function ProductDetailSheet({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      if (e.key === 'Tab') {
+        if (!dialogRef.current) return;
+        const nodes = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+        if (nodes.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const first = nodes[0];
+        const last = nodes[nodes.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || active === dialogRef.current)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  const isModifierValid = useMemo(() => {
+    if (!product || !product.modifierGroups || product.modifierGroups.length === 0) {
+      return true;
+    }
+    return product.modifierGroups.every((g) => {
+      const minRequired = Math.max(g.minSelections || 0, g.isRequired ? 1 : 0);
+      const selectedCount = (selectedModifiers[g.id] || []).length;
+      return selectedCount >= minRequired;
+    });
+  }, [product, selectedModifiers]);
+
   if (!isOpen || !product) {
     return null;
   }
@@ -45,6 +94,10 @@ export function ProductDetailSheet({
   };
 
   const handleAdd = () => {
+    if (!isModifierValid) {
+      return;
+    }
+
     const formattedMods: any[] = [];
     (product.modifierGroups || []).forEach((g) => {
       const selected = selectedModifiers[g.id] || [];
@@ -72,6 +125,37 @@ export function ProductDetailSheet({
       aria-modal="true"
       ref={dialogRef}
       tabIndex={-1}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+          return;
+        }
+        if (e.key === 'Tab') {
+          if (!dialogRef.current) return;
+          const nodes = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+          if (nodes.length === 0) {
+            e.preventDefault();
+            return;
+          }
+          const first = nodes[0];
+          const last = nodes[nodes.length - 1];
+          const active = document.activeElement;
+          if (e.shiftKey && (active === first || active === dialogRef.current)) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && active === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -149,20 +233,55 @@ export function ProductDetailSheet({
           </div>
         )}
 
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: 'var(--bento-spacing-md)',
+            paddingTop: 'var(--bento-spacing-sm)',
+            borderTop: '1px solid var(--bento-card-border, rgba(0, 0, 0, 0.1))',
+          }}
+        >
+          <span style={{ fontWeight: 600, color: 'var(--bento-text)' }}>Cantidad</span>
+          <QuantityStepper
+            quantity={quantity}
+            productName={product.name}
+            onIncrease={() => setQuantity((q) => q + 1)}
+            onDecrease={() => setQuantity((q) => Math.max(1, q - 1))}
+          />
+        </div>
+
+        {!isModifierValid && (
+          <p
+            role="alert"
+            style={{
+              margin: 'var(--bento-spacing-sm) 0 0 0',
+              color: 'var(--bento-destructive)',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+            }}
+          >
+            Selecciona las opciones obligatorias para continuar.
+          </p>
+        )}
+
         <div style={{ marginTop: 'var(--bento-spacing-md)', display: 'flex', gap: 'var(--bento-spacing-sm)' }}>
           <button
             type="button"
             onClick={handleAdd}
+            disabled={!isModifierValid}
             style={{
               minHeight: 'var(--bento-touch-target)',
               width: '100%',
-              backgroundColor: 'var(--bento-accent-strong)',
-              color: '#ffffff',
+              backgroundColor: isModifierValid ? 'var(--bento-accent-strong)' : 'var(--bento-papel)',
+              color: isModifierValid ? 'var(--bento-card-bg)' : 'var(--bento-text-muted)',
               borderRadius: 'var(--bento-card-radius)',
-              border: 'none',
+              border: isModifierValid ? 'none' : '1px solid var(--bento-border)',
               fontWeight: 700,
               fontSize: '1rem',
-              cursor: 'pointer',
+              cursor: isModifierValid ? 'pointer' : 'not-allowed',
+              opacity: isModifierValid ? 1 : 0.6,
             }}
           >
             Añadir al carrito

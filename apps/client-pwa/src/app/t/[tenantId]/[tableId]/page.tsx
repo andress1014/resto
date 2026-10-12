@@ -1,8 +1,9 @@
 "use client";
+
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PwaApiClient } from '../../../../lib/api';
-import { BentoCard } from '@packages/ui-components';
+import { BentoCard, Skeleton } from '@packages/ui-components';
 
 export interface TableLandingPageProps {
   params: {
@@ -21,11 +22,6 @@ export default function TableLandingPage({ params, searchParams }: TableLandingP
   useEffect(() => {
     let isMounted = true;
 
-    // Reset URL to the table landing route if previous navigation was to /menu
-    if (typeof window !== 'undefined' && window.location.pathname.includes('/menu')) {
-      window.history.pushState({}, '', `/t/${params.tenantId}/${params.tableId}`);
-    }
-
     async function initializeSession() {
       try {
         const qrKey = searchParams?.k;
@@ -41,9 +37,6 @@ export default function TableLandingPage({ params, searchParams }: TableLandingP
 
         if (isMounted) {
           const targetUrl = `/t/${params.tenantId}/${params.tableId}/menu`;
-          if (typeof window !== 'undefined' && window.location) {
-            window.history.pushState({}, '', targetUrl);
-          }
           router.push(targetUrl);
         }
       } catch (err: any) {
@@ -62,27 +55,167 @@ export default function TableLandingPage({ params, searchParams }: TableLandingP
 
   if (error) {
     return (
-      <div style={{ padding: '16px', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <main
+        style={{
+          padding: '16px',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'var(--bento-hueso)',
+          fontFamily: 'var(--bento-font-body)',
+        } as React.CSSProperties}
+      >
         <div style={{ width: '100%', maxWidth: '400px' }}>
-          <BentoCard>
-            <div role="alert" style={{ color: 'var(--bento-destructive)', fontWeight: 600 }}>
-              {error}
+          <BentoCard
+            style={{
+              backgroundColor: 'var(--bento-papel)',
+              '--bento-card-bg': 'var(--bento-papel)',
+              border: '1px solid var(--bento-destructive)',
+              borderRadius: 'var(--bento-card-radius)',
+              padding: '24px',
+              textAlign: 'center',
+            } as React.CSSProperties}
+          >
+            <div
+              role="alert"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--bento-hueso)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg
+                  aria-hidden="true"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--bento-destructive)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+              </div>
+
+              <div>
+                <h2
+                  style={{
+                    margin: '0 0 6px 0',
+                    fontSize: '18px',
+                    fontFamily: 'var(--bento-font-heading)',
+                    fontWeight: 700,
+                    color: 'var(--bento-destructive)',
+                  }}
+                >
+                  No se pudo abrir la mesa
+                </h2>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: '14px',
+                    lineHeight: 1.4,
+                    color: 'var(--bento-text)',
+                    fontWeight: 500,
+                  }}
+                >
+                  {error}
+                </p>
+              </div>
+
+              <p
+                style={{
+                  margin: '4px 0 0 0',
+                  fontSize: '12px',
+                  color: 'var(--bento-text-muted)',
+                }}
+              >
+                Verifica el código QR de tu mesa o consulta con el personal de sala.
+              </p>
             </div>
           </BentoCard>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div style={{ padding: '16px', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <main
+      style={{
+        padding: '16px',
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'var(--bento-hueso)',
+        fontFamily: 'var(--bento-font-body)',
+      } as React.CSSProperties}
+    >
       <div style={{ width: '100%', maxWidth: '400px' }}>
-        <BentoCard>
-          <div style={{ color: 'var(--bento-text)', textAlign: 'center', padding: '12px 0' }}>
-            Conectando con la mesa...
+        <BentoCard
+          style={{
+            backgroundColor: 'var(--bento-papel)',
+            '--bento-card-bg': 'var(--bento-papel)',
+            border: '1px solid var(--bento-border)',
+            borderRadius: 'var(--bento-card-radius)',
+            padding: '32px 24px',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '16px',
+          } as React.CSSProperties}
+        >
+          {/* Skeleton animado para indicar carga de conexión */}
+          <div style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Skeleton width="48px" height="48px" radius="50%" />
+          </div>
+
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: '18px',
+                fontFamily: 'var(--bento-font-heading)',
+                fontWeight: 700,
+                color: 'var(--bento-tinta)',
+              }}
+            >
+              Conectando con tu mesa...
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                fontSize: '13px',
+                color: 'var(--bento-text-muted)',
+              }}
+            >
+              Abriendo sesión para mesa {params.tableId}
+            </p>
+          </div>
+
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+            <Skeleton width="100%" height="12px" radius="var(--bento-pill-radius)" />
+            <Skeleton width="75%" height="12px" radius="var(--bento-pill-radius)" style={{ margin: '0 auto' }} />
           </div>
         </BentoCard>
       </div>
-    </div>
+    </main>
   );
 }

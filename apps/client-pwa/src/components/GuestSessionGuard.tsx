@@ -16,32 +16,58 @@ export function GuestSessionGuard({ children }: GuestSessionGuardProps) {
     setMounted(true);
   }, []);
 
-  // Pre-mount / SSR: renderizar placeholder neutro identico para evitar mismatch de hidratacion
+  // Pre-mount / SSR: renderizar placeholder neutro con tokens Lima & Tinta para evitar mismatch de hidratacion
   if (!mounted) {
     return (
       <div
         data-testid="guest-guard-loading"
+        suppressHydrationWarning
         style={{
           minHeight: '100vh',
-          backgroundColor: 'var(--bento-page-bg, #F5F5F7)',
+          backgroundColor: 'var(--bento-hueso)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-        }}
+        } as React.CSSProperties}
       />
     );
   }
 
   if (!hasToken) {
     return (
-      <div style={{ padding: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: 'var(--bento-page-bg, #F5F5F7)' }}>
+      <div
+        data-testid="guest-guard-unauthorized"
+        style={{
+          padding: '24px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+          backgroundColor: 'var(--bento-hueso)',
+        } as React.CSSProperties}
+      >
         <div style={{ width: '100%', maxWidth: '400px' }}>
-          <BentoCard>
+          <BentoCard style={{ backgroundColor: 'var(--bento-papel)' } as React.CSSProperties}>
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 8px 0', color: 'var(--bento-text)' }}>
+              <h2
+                style={{
+                  fontSize: '1.25rem',
+                  fontWeight: 700,
+                  margin: '0 0 8px 0',
+                  color: 'var(--bento-tinta)',
+                  fontFamily: 'var(--bento-font-heading)',
+                } as React.CSSProperties}
+              >
                 Escanea el QR de tu mesa
               </h2>
-              <p style={{ margin: 0, color: 'var(--bento-text-muted)', fontSize: '0.9rem' }}>
+              <p
+                style={{
+                  margin: 0,
+                  color: 'var(--bento-text-muted)',
+                  fontSize: '0.9rem',
+                  fontFamily: 'var(--bento-font-body)',
+                }}
+              >
                 Para poder ver la carta y pedir, escanea el código QR que se encuentra en tu mesa.
               </p>
             </div>

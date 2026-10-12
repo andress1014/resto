@@ -1,11 +1,12 @@
 import React from 'react';
-import { OrderDTO, OrderStatus } from '@packages/shared-types';
+import { OrderDTO, OrderStatus, TableDTO } from '@packages/shared-types';
 import { KdsOrderCard } from './KdsOrderCard';
 
 export interface KdsColumnProps {
   status: OrderStatus;
   title: string;
   orders: OrderDTO[];
+  tables?: TableDTO[];
   onAdvanceStatus?: (orderId: string, nextStatus: OrderStatus) => void;
   updatingOrderId?: string | null;
 }
@@ -14,6 +15,7 @@ export function KdsColumn({
   status,
   title,
   orders,
+  tables,
   onAdvanceStatus,
   updatingOrderId,
 }: KdsColumnProps) {
@@ -21,23 +23,91 @@ export function KdsColumn({
   const countText = `${columnOrders.length} orden${columnOrders.length === 1 ? '' : 'es'}`;
 
   return (
-    <div className="flex flex-col rounded-xl border border-[var(--bento-border)] bg-[var(--bento-surface)] p-3">
-      <div className="flex items-center justify-between pb-3 border-b border-[var(--bento-border)] mb-3">
-        <h3 className="font-bold text-sm tracking-wide text-[var(--bento-text)] uppercase">{title}</h3>
-        <span className="text-xs font-medium text-[var(--bento-text-muted)] bg-[var(--bento-bg)] px-2.5 py-0.5 rounded-full border border-[var(--bento-border)]">
+    <div
+      data-testid={`kds-column-${status.toLowerCase()}`}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        borderRadius: 'var(--bento-card-radius)',
+        border: '1px solid var(--bento-border)',
+        backgroundColor: 'var(--bento-card-bg)',
+        padding: '16px',
+        boxShadow: 'var(--bento-card-shadow)',
+        minHeight: '400px',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingBottom: '12px',
+          borderBottom: '1px solid var(--bento-border)',
+          marginBottom: '16px',
+        }}
+      >
+        <h3
+          style={{
+            margin: 0,
+            fontWeight: 700,
+            fontSize: '13px',
+            letterSpacing: '0.05em',
+            color: 'var(--bento-text)',
+            textTransform: 'uppercase',
+            fontFamily: 'var(--bento-font-heading)',
+          }}
+        >
+          {title}
+        </h3>
+        <span
+          style={{
+            fontSize: '12px',
+            fontWeight: 600,
+            color: 'var(--bento-text-muted)',
+            backgroundColor: 'var(--bento-hueso)',
+            padding: '2px 10px',
+            borderRadius: 'var(--bento-pill-radius)',
+            border: '1px solid var(--bento-border)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
           {countText}
         </span>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto">
-        {columnOrders.map((order) => (
-          <KdsOrderCard
-            key={order.id}
-            order={order}
-            onAdvanceStatus={onAdvanceStatus}
-            isUpdating={updatingOrderId === order.id}
-          />
-        ))}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          overflowY: 'auto',
+        }}
+      >
+        {columnOrders.length === 0 ? (
+          <div
+            style={{
+              padding: '32px 16px',
+              textAlign: 'center',
+              color: 'var(--bento-text-muted)',
+              fontSize: '14px',
+              border: '1px dashed var(--bento-border)',
+              borderRadius: 'var(--bento-inner-radius)',
+            }}
+          >
+            Sin órdenes
+          </div>
+        ) : (
+          columnOrders.map((order) => (
+            <KdsOrderCard
+              key={order.id}
+              order={order}
+              tables={tables}
+              onAdvanceStatus={onAdvanceStatus}
+              isUpdating={updatingOrderId === order.id}
+            />
+          ))
+        )}
       </div>
     </div>
   );

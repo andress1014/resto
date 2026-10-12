@@ -46,23 +46,69 @@ export default function RegisterPage() {
   };
 
   return (
-    <div
+    <main
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: '100vh',
-        backgroundColor: 'var(--bento-page-bg, #F5F5F7)',
-        padding: '16px',
+        backgroundColor: 'var(--bento-hueso)',
+        padding: '24px 16px',
+        boxSizing: 'border-box',
+        fontFamily: 'var(--bento-font-body)',
       }}
     >
-      <div style={{ width: '100%', maxWidth: '460px' }}>
-        <BentoCard>
-          <div style={{ padding: '8px 0' }}>
-            <h2 style={{ margin: '0 0 8px 0', fontSize: '1.5rem', fontWeight: 700 }}>
+      <style>{`
+        input:focus-visible {
+          outline: var(--bento-focus-ring);
+          outline-offset: 2px;
+        }
+      `}</style>
+      <div style={{ width: '100%', maxWidth: '400px' }}>
+        <BentoCard
+          style={{
+            backgroundColor: 'var(--bento-papel)',
+            border: '1px solid var(--bento-border)',
+            borderRadius: 'var(--bento-card-radius)',
+            boxShadow: 'var(--bento-card-shadow)',
+            padding: '32px 28px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: '0.6875rem',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--bento-text-muted)',
+                marginBottom: '4px',
+              }}
+            >
+              Resto Admin
+            </div>
+            <h1
+              style={{
+                margin: '0 0 8px 0',
+                fontSize: '1.625rem',
+                fontWeight: 700,
+                fontFamily: 'var(--bento-font-heading)',
+                color: 'var(--bento-tinta)',
+                letterSpacing: '-0.02em',
+              }}
+            >
               Crear Restaurante
-            </h2>
-            <p style={{ margin: '0 0 20px 0', color: '#6b7280', fontSize: '0.875rem' }}>
+            </h1>
+            <p
+              style={{
+                margin: '0 0 24px 0',
+                color: 'var(--bento-text-muted)',
+                fontSize: '0.875rem',
+                fontFamily: 'var(--bento-font-body)',
+                lineHeight: 1.4,
+              }}
+            >
               Registra tu negocio para empezar a gestionar cartas y pedidos
             </p>
 
@@ -70,16 +116,35 @@ export default function RegisterPage() {
               <div
                 role="alert"
                 style={{
-                  padding: '12px',
-                  marginBottom: '16px',
-                  borderRadius: '8px',
-                  backgroundColor: '#fee2e2',
-                  color: '#b91c1c',
+                  padding: '12px 14px',
+                  marginBottom: '20px',
+                  borderRadius: 'var(--bento-inner-radius)',
+                  backgroundColor: 'var(--bento-papel)',
+                  border: '1px solid var(--bento-destructive)',
+                  color: 'var(--bento-destructive)',
                   fontSize: '0.875rem',
                   fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
                 }}
               >
-                {error}
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>{error}</span>
               </div>
             )}
 
@@ -87,7 +152,12 @@ export default function RegisterPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label
                   htmlFor="restaurantName"
-                  style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}
+                  style={{
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: 'var(--bento-tinta)',
+                    fontFamily: 'var(--bento-font-body)',
+                  }}
                 >
                   Nombre del Restaurante
                 </label>
@@ -98,12 +168,17 @@ export default function RegisterPage() {
                   onChange={(e) => setRestaurantName(e.target.value)}
                   placeholder="Mi Restaurante Gourmet"
                   required
+                  disabled={loading}
                   style={{
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #d1d5db',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--bento-inner-radius)',
+                    border: '1px solid var(--bento-border)',
+                    backgroundColor: 'var(--bento-papel)',
+                    color: 'var(--bento-tinta)',
                     fontSize: '0.95rem',
-                    outline: 'none',
+                    fontFamily: 'var(--bento-font-body)',
+                    boxSizing: 'border-box',
+                    width: '100%',
                   }}
                 />
               </div>
@@ -111,7 +186,12 @@ export default function RegisterPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label
                   htmlFor="adminEmail"
-                  style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}
+                  style={{
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: 'var(--bento-tinta)',
+                    fontFamily: 'var(--bento-font-body)',
+                  }}
                 >
                   Correo Electrónico (Admin)
                 </label>
@@ -122,12 +202,17 @@ export default function RegisterPage() {
                   onChange={(e) => setAdminEmail(e.target.value)}
                   placeholder="admin@resto.com"
                   required
+                  disabled={loading}
                   style={{
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #d1d5db',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--bento-inner-radius)',
+                    border: '1px solid var(--bento-border)',
+                    backgroundColor: 'var(--bento-papel)',
+                    color: 'var(--bento-tinta)',
                     fontSize: '0.95rem',
-                    outline: 'none',
+                    fontFamily: 'var(--bento-font-body)',
+                    boxSizing: 'border-box',
+                    width: '100%',
                   }}
                 />
               </div>
@@ -135,7 +220,12 @@ export default function RegisterPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label
                   htmlFor="adminPassword"
-                  style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}
+                  style={{
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: 'var(--bento-tinta)',
+                    fontFamily: 'var(--bento-font-body)',
+                  }}
                 >
                   Contraseña (Admin)
                 </label>
@@ -146,12 +236,17 @@ export default function RegisterPage() {
                   onChange={(e) => setAdminPassword(e.target.value)}
                   placeholder="••••••••"
                   required
+                  disabled={loading}
                   style={{
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #d1d5db',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--bento-inner-radius)',
+                    border: '1px solid var(--bento-border)',
+                    backgroundColor: 'var(--bento-papel)',
+                    color: 'var(--bento-tinta)',
                     fontSize: '0.95rem',
-                    outline: 'none',
+                    fontFamily: 'var(--bento-font-body)',
+                    boxSizing: 'border-box',
+                    width: '100%',
                   }}
                 />
               </div>
@@ -159,7 +254,12 @@ export default function RegisterPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label
                   htmlFor="slug"
-                  style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}
+                  style={{
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: 'var(--bento-tinta)',
+                    fontFamily: 'var(--bento-font-body)',
+                  }}
                 >
                   Slug URL (opcional)
                 </label>
@@ -169,12 +269,17 @@ export default function RegisterPage() {
                   value={slug}
                   onChange={(e) => setSlug(e.target.value)}
                   placeholder="mi-restaurante"
+                  disabled={loading}
                   style={{
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #d1d5db',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--bento-inner-radius)',
+                    border: '1px solid var(--bento-border)',
+                    backgroundColor: 'var(--bento-papel)',
+                    color: 'var(--bento-tinta)',
                     fontSize: '0.95rem',
-                    outline: 'none',
+                    fontFamily: 'var(--bento-font-body)',
+                    boxSizing: 'border-box',
+                    width: '100%',
                   }}
                 />
               </div>
@@ -182,27 +287,63 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={loading}
+                aria-busy={loading}
                 style={{
                   marginTop: '8px',
-                  padding: '12px',
-                  backgroundColor: '#10b981',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '1rem',
+                  padding: '12px 20px',
+                  backgroundColor: 'var(--bento-tinta)',
+                  color: 'var(--bento-papel)',
+                  border: '1px solid var(--bento-tinta)',
+                  borderRadius: 'var(--bento-pill-radius)',
+                  fontSize: '0.95rem',
                   fontWeight: 600,
+                  fontFamily: 'var(--bento-font-body)',
                   cursor: loading ? 'not-allowed' : 'pointer',
                   opacity: loading ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxSizing: 'border-box',
+                  width: '100%',
                 }}
               >
-                {loading ? 'Creando cuenta...' : 'Crear Cuenta y Restaurante'}
+                {loading && (
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                  </svg>
+                )}
+                <span>{loading ? 'Creando cuenta...' : 'Crear Cuenta y Restaurante'}</span>
               </button>
 
-              <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '0.875rem', color: '#6b7280' }}>
+              <div
+                style={{
+                  textAlign: 'center',
+                  marginTop: '12px',
+                  fontSize: '0.875rem',
+                  color: 'var(--bento-text-muted)',
+                  fontFamily: 'var(--bento-font-body)',
+                }}
+              >
                 ¿Ya tienes una cuenta?{' '}
                 <a
                   href="/login"
-                  style={{ color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}
+                  style={{
+                    color: 'var(--bento-tinta)',
+                    fontWeight: 600,
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '3px',
+                  }}
                 >
                   Inicia sesión aquí
                 </a>
@@ -211,6 +352,6 @@ export default function RegisterPage() {
           </div>
         </BentoCard>
       </div>
-    </div>
+    </main>
   );
 }

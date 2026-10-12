@@ -8,11 +8,13 @@ export interface CartLineItemProps {
   item: CartItemDTO;
   currentUserId?: string;
   onUpdateQuantity?: (quantity: number) => void;
+  onRemove?: () => void;
 }
 
 export function CartLineItem({
   item,
   onUpdateQuantity,
+  onRemove,
 }: CartLineItemProps) {
   const modifiersSummary = (item.modifiers || [])
     .map((m) => m.optionName)
@@ -67,6 +69,7 @@ export function CartLineItem({
           productName={item.productName}
           onIncrease={() => onUpdateQuantity?.(item.quantity + 1)}
           onDecrease={() => onUpdateQuantity?.(item.quantity - 1)}
+          onRemove={() => (onRemove ? onRemove() : onUpdateQuantity?.(0))}
         />
       </div>
     </BentoCard>

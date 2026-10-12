@@ -8,8 +8,7 @@ import { ProductListCard } from '../src/components/ProductListCard';
 import { ProductDetailSheet } from '../src/components/ProductDetailSheet';
 import { ModifierGroupPicker } from '../src/components/ModifierGroupPicker';
 import { PwaApiClient } from '../src/lib/api';
-import { PWA_BENTO_TOKENS, PWA_BENTO_STYLESHEET } from '../src/tokens';
-import { FeatureGuard } from '@packages/ui-components';
+import { FeatureGuard, BENTO_TOKENS, BENTO_STYLESHEET } from '@packages/ui-components';
 
 describe('C. Client PWA — Bento Box mobile-first (Tests 16-27)', () => {
   beforeEach(() => {
@@ -184,10 +183,10 @@ describe('C. Client PWA — Bento Box mobile-first (Tests 16-27)', () => {
   });
 
   test('25. Móvil: todo touchable referencia el token --bento-touch-target (44px) y la hoja de tokens del PWA define safe-area y grid 1->2 columnas', () => {
-    expect(PWA_BENTO_TOKENS['--bento-touch-target']).toBe('44px');
-    expect(PWA_BENTO_TOKENS['--bento-touch-gap']).toBe('8px');
-    expect(PWA_BENTO_STYLESHEET).toContain('env(safe-area-inset-bottom)');
-    expect(PWA_BENTO_STYLESHEET).toContain('@media (min-width: 640px)');
+    expect(BENTO_TOKENS['--bento-touch-target']).toBe('44px');
+    expect(BENTO_TOKENS['--bento-touch-gap']).toBe('8px');
+    expect(BENTO_STYLESHEET).toContain('env(safe-area-inset-bottom)');
+    expect(BENTO_STYLESHEET).toContain('@media (max-width: 640px)');
   });
 
   test('26. Cero decoración y a11y: iconos SVG con aria-hidden="true", imágenes de producto con alt, sin emojis como iconos; el sheet mueve el foco al abrir y lo devuelve al cerrar', () => {

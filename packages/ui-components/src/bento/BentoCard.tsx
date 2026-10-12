@@ -25,12 +25,10 @@ export function BentoCard({
     boxShadow: 'var(--bento-card-shadow)',
     background: 'var(--bento-card-bg)',
     backgroundColor: 'var(--bento-card-bg)',
-    '--bento-card-bg': 'var(--bento-card-bg)',
     gridColumn: span === 2 ? 'span 2' : undefined,
     ...(interactive
       ? {
           cursor: 'pointer',
-          outline: 'var(--bento-focus-ring)',
         }
       : {}),
     ...style,

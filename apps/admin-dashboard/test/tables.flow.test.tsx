@@ -326,4 +326,249 @@ describe('Gestión de Mesas en Admin Dashboard (Tests Rojo/Verde)', () => {
     expect(alert).toBeInTheDocument();
     expect(alert).toHaveTextContent(/Acceso no autorizado/i);
   });
+
+  test('7. Permite alternar entre vista Lista y Mapa de Mesas mostrando slots con tinta/punteado y leyenda', async () => {
+    const mockTables = [
+      { tableId: 'tbl-1', label: 'Mesa 1', status: 'active', createdAt: '2026-10-06T10:00:00Z' },
+      { tableId: 'tbl-2', label: 'Mesa 2', status: 'active', createdAt: '2026-10-06T10:00:00Z' },
+    ];
+    const mockActiveSessions = [{ id: 'sess-1', tableId: 'tbl-1', status: 'active' }];
+
+    global.fetch = jest.fn(async (url: any) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/v1/sessions')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => mockActiveSessions,
+        };
+      }
+      if (urlStr.includes('/v1/tables')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => mockTables,
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as any;
+
+    const { container } = render(<TablesPage />);
+    expect(await screen.findByText('Mesa 1')).toBeInTheDocument();
+
+    // Cambiar a la vista Mapa
+    const mapTab = screen.getByRole('tab', { name: /Mapa/i });
+    fireEvent.click(mapTab);
+
+    // Debe mostrar la leyenda y el contenedor del mapa
+    expect(screen.getByText(/Leyenda/i)).toBeInTheDocument();
+    expect(screen.getByTestId('tables-map-grid')).toBeInTheDocument();
+
+    // Verificamos los slots de Mesa 1 (ocupada) y Mesa 2 (libre)
+    const slotMesa1 = screen.getByTestId('slot-tbl-1');
+    const slotMesa2 = screen.getByTestId('slot-tbl-2');
+    expect(slotMesa1).toHaveAttribute('data-slot-status', 'ocupada');
+    expect(slotMesa2).toHaveAttribute('data-slot-status', 'libre');
+
+    // Cambiar de regreso a la vista Lista
+    const listTab = screen.getByRole('tab', { name: /Lista/i });
+    fireEvent.click(listTab);
+    expect(container.querySelector('[data-component="bento-grid"]')).toBeInTheDocument();
+  });
+
+  test('8. Muestra estado vacío accesible (EmptyState) con acción de crear cuando no hay mesas', async () => {
+    global.fetch = jest.fn(async (url: any) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/v1/sessions')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => [],
+        };
+      }
+      if (urlStr.includes('/v1/tables')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => [],
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as any;
+
+    const { container } = render(<TablesPage />);
+    expect(await screen.findByText('No hay mesas registradas')).toBeInTheDocument();
+    expect(container.querySelector('[data-component="empty-state"]')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Crear primera mesa/i })).toBeInTheDocument();
+  });
+
+  test('9. Muestra ErrorState accesible y permite reintentar cuando falla la carga', async () => {
+    let attempts = 0;
+    global.fetch = jest.fn(async (url: any) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/v1/sessions')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => [],
+        };
+      }
+      if (urlStr.includes('/v1/tables')) {
+        attempts++;
+        if (attempts === 1) {
+          return {
+            ok: false,
+            status: 500,
+            headers: { get: () => 'application/json' },
+            json: async () => ({ message: 'Fallo al conectar con el servidor' }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => [{ tableId: 'tbl-recov', label: 'Mesa Recuperada', status: 'active', createdAt: '2026-10-06T10:00:00Z' }],
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as any;
+
+    const { container } = render(<TablesPage />);
+    expect(await screen.findByText(/Fallo al conectar con el servidor/i)).toBeInTheDocument();
+    expect(container.querySelector('[data-component="error-state"]')).toBeInTheDocument();
+
+    const retryBtn = screen.getByRole('button', { name: /Reintentar/i });
+    fireEvent.click(retryBtn);
+
+    expect(await screen.findByText('Mesa Recuperada')).toBeInTheDocument();
+  });
+
+  test('10. Modal QR puede cerrarse con la tecla Escape o el botón de cerrar', async () => {
+    const mockTables = [
+      { tableId: 'tbl-1', label: 'Mesa QR', status: 'active', createdAt: '2026-10-06T10:00:00Z' },
+    ];
+
+    global.fetch = jest.fn(async (url: any) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/v1/sessions')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => [],
+        };
+      }
+      if (urlStr.includes('/v1/tables/tbl-1/qr')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => ({
+            url: 'http://localhost:3001/t/tenant-1/tbl-1?k=key123',
+            pngDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA',
+          }),
+        };
+      }
+      if (urlStr.includes('/v1/tables')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => mockTables,
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as any;
+
+    render(<TablesPage />);
+    expect(await screen.findByText('Mesa QR')).toBeInTheDocument();
+
+    const qrBtn = screen.getByRole('button', { name: /Ver QR/i });
+    fireEvent.click(qrBtn);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    // Presionar Escape para cerrar el modal
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  test('11. H3: Ningún botón en Mesas usa colores warning o amber (fondo ni borde) y Rotar QR usa tinta/papel', async () => {
+    const mockTables = [
+      { tableId: 'tbl-1', label: 'Mesa 1', status: 'active', createdAt: '2026-10-06T10:00:00Z' },
+    ];
+
+    global.fetch = jest.fn(async (url: any) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/v1/sessions')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => [],
+        };
+      }
+      if (urlStr.includes('/v1/tables/tbl-1/qr')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => ({
+            url: 'http://localhost:3001/t/tenant-1/tbl-1?k=key123',
+            pngDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA',
+          }),
+        };
+      }
+      if (urlStr.includes('/v1/tables')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: async () => mockTables,
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as any;
+
+    render(<TablesPage />);
+    expect(await screen.findByText('Mesa 1')).toBeInTheDocument();
+
+    // Abrir modal QR
+    const qrBtn = screen.getByRole('button', { name: /Ver QR/i });
+    fireEvent.click(qrBtn);
+
+    const rotateBtn = await screen.findByRole('button', { name: /Rotar QR/i });
+    expect(rotateBtn).toBeInTheDocument();
+
+    // Comprobar todos los botones en el documento
+    const allButtons = screen.getAllByRole('button');
+    expect(allButtons.length).toBeGreaterThan(0);
+
+    for (const btn of allButtons) {
+      const styleAttr = btn.getAttribute('style') || '';
+      expect(styleAttr).not.toContain('var(--bento-warning)');
+      expect(styleAttr).not.toContain('var(--bento-amber)');
+    }
+
+    // Lección aprendida: jsdom puede no retener CSS variables en inline styles.
+    // Verificamos directamente el archivo fuente de mesas/page.tsx:
+    const fs = require('fs');
+    const path = require('path');
+    const mesasSource = fs.readFileSync(path.resolve(__dirname, '../src/app/(panel)/mesas/page.tsx'), 'utf-8');
+
+    expect(mesasSource).not.toContain('var(--bento-warning)');
+    expect(mesasSource).not.toContain('var(--bento-amber)');
+    expect(mesasSource).toMatch(/Rotar QR[\s\S]*?var\(--bento-tinta\)|var\(--bento-tinta\)[\s\S]*?Rotar QR/);
+    expect(mesasSource).toMatch(/Rotar QR[\s\S]*?var\(--bento-papel\)|var\(--bento-papel\)[\s\S]*?Rotar QR/);
+  });
 });
+

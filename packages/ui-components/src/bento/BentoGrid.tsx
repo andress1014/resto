@@ -16,6 +16,8 @@ export function BentoGrid({ children, cols = 4, className, style }: BentoGridPro
         display: 'grid',
         gap: 'var(--bento-grid-gap)',
         gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+        width: '100%',
+        boxSizing: 'border-box',
         ...style,
       }}
     >

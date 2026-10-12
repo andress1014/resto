@@ -1,6 +1,6 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import {
   ActiveTablesGrid,
   BillSummaryCard,
@@ -8,13 +8,13 @@ import {
   ConfirmPaymentButton,
   PaymentSuccessCard,
 } from '../src/components/checkout';
-import CheckoutPage from '../src/app/checkout/page';
+import CheckoutPage from '../src/app/(panel)/checkout/page';
 import {
   FeatureGuard,
   FeatureFlagProviderRoot,
   StaticFeatureFlagProvider,
 } from '@packages/ui-components';
-import { BillDTO, TableSessionDTO } from '@packages/shared-types';
+import { BillDTO, TableSessionDTO, TableDTO } from '@packages/shared-types';
 
 describe('C. Admin Dashboard — Vista de Checkout (Tests 13-19)', () => {
   const sampleActiveSessions: TableSessionDTO[] = [
@@ -92,6 +92,12 @@ describe('C. Admin Dashboard — Vista de Checkout (Tests 13-19)', () => {
     expect(screen.getByText('Mesa 2')).toBeInTheDocument();
   });
 
+  test('13b. ActiveTablesGrid en estado de carga muestra skeletons de carga inicial', () => {
+    const { container } = render(<ActiveTablesGrid sessions={[]} loading={true} />);
+    const skeletons = container.querySelectorAll('[data-component="skeleton"]');
+    expect(skeletons.length).toBeGreaterThan(0);
+  });
+
   test('14. Al seleccionar mesa: BillSummaryCard muestra cada Order con items y el total como KpiValue tone="accent"; una Order cancelada NO aparece', () => {
     const { container } = render(<BillSummaryCard bill={sampleBill} />);
     expect(screen.getByText('Tacos al Pastor')).toBeInTheDocument();
@@ -116,7 +122,7 @@ describe('C. Admin Dashboard — Vista de Checkout (Tests 13-19)', () => {
     expect(btn).toBeDisabled();
   });
 
-  test('16. Flujo de cobro: CTA -> paso de confirmación inline -> POST /v1/checkout/confirm con el method elegido -> PaymentSuccessCard "Mesa liberada" y la mesa desaparece de la lista', () => {
+  test('16. Flujo de cobro: CTA -> abre ModalConfirm obligatorio (cuenta actual vs total a cobrar, filas de impacto: método CASH; botón negro sólido "Confirmar cobro", ghost rojo "Cancelar") -> onConfirm ejecutado solo tras confirmación', () => {
     const onConfirm = jest.fn();
     render(
       <ConfirmPaymentButton
@@ -129,12 +135,31 @@ describe('C. Admin Dashboard — Vista de Checkout (Tests 13-19)', () => {
     const initialBtn = screen.getByRole('button', { name: /registrar cobro/i });
     fireEvent.click(initialBtn);
 
-    // Debe mostrar paso de confirmación inline
-    const confirmInlineBtn = screen.getByRole('button', { name: /confirmar cobro y liberar mesa/i });
-    expect(confirmInlineBtn).toBeInTheDocument();
+    // Debe mostrar ModalConfirm con role="dialog"
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText(/cuenta actual/i)).toBeInTheDocument();
+    expect(screen.getByText(/total a cobrar/i)).toBeInTheDocument();
+    expect(screen.getByText(/método/i)).toBeInTheDocument();
+    expect(screen.getByText('Efectivo')).toBeInTheDocument();
+    expect(screen.queryByText(/cambio/i)).not.toBeInTheDocument();
 
-    fireEvent.click(confirmInlineBtn);
-    expect(onConfirm).toHaveBeenCalled();
+    const cancelBtn = screen.getByRole('button', { name: 'Cancelar' });
+    const confirmBtn = screen.getByRole('button', { name: 'Confirmar cobro' });
+    expect(cancelBtn).toBeInTheDocument();
+    expect(confirmBtn).toBeInTheDocument();
+
+    // Cancelar cierra el modal sin cobrar
+    fireEvent.click(cancelBtn);
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // Reabrir y confirmar
+    fireEvent.click(initialBtn);
+    const confirmBtnAgain = screen.getByRole('button', { name: 'Confirmar cobro' });
+    fireEvent.click(confirmBtnAgain);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     render(<PaymentSuccessCard tableId="Mesa 1" amount={65} method="CASH" />);
     expect(screen.getByText(/cobro registrado/i)).toBeInTheDocument();
@@ -164,7 +189,7 @@ describe('C. Admin Dashboard — Vista de Checkout (Tests 13-19)', () => {
     });
   });
 
-  test('19. <FeatureGuard flag="payments">: OFF -> Proximamente; ON (provider inyectado) -> vista de checkout', () => {
+  test('19. <FeatureGuard flag="payments">: OFF -> Proximamente; ON (provider inyectado) -> vista de checkout', async () => {
     // OFF
     const { rerender } = render(<CheckoutPage />);
     expect(screen.getByTestId('proximamente')).toBeInTheDocument();
@@ -178,6 +203,135 @@ describe('C. Admin Dashboard — Vista de Checkout (Tests 13-19)', () => {
       </FeatureFlagProviderRoot>
     );
 
-    expect(screen.getByTestId('checkout-content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('checkout-content')).toBeInTheDocument();
+    });
+  });
+
+  test('H9 (a) Nombre de mesa resuelto con getTableDisplayName en la grilla y en el resumen de cuenta', () => {
+    const tables: TableDTO[] = [
+      {
+        tableId: 'tbl-terraza',
+        tenantId: 't-1',
+        label: 'Terraza VIP',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    const sessions: TableSessionDTO[] = [
+      {
+        sessionId: 'sess-t1',
+        tenantId: 't-1',
+        tableId: 'tbl-terraza',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date().toISOString(),
+      },
+    ];
+    const bill: BillDTO = {
+      sessionId: 'sess-t1',
+      tableId: 'tbl-terraza',
+      ordersCount: 1,
+      total: 100,
+      payment: null,
+      orders: [
+        {
+          id: 'order-99887766',
+          tenantId: 't-1',
+          sessionId: 'sess-t1',
+          tableId: 'tbl-terraza',
+          status: 'READY',
+          total: 100,
+          items: [
+            {
+              id: 'it-1',
+              productId: 'p-1',
+              productName: 'Vino Tinto',
+              unitPrice: 100,
+              quantity: 1,
+              modifiers: [],
+            },
+          ],
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    };
+
+    const { rerender } = render(<ActiveTablesGrid sessions={sessions} tables={tables} />);
+    expect(screen.getByText('Terraza VIP')).toBeInTheDocument();
+    expect(screen.queryByText('tbl-terraza')).not.toBeInTheDocument();
+
+    rerender(<BillSummaryCard bill={bill} tables={tables} />);
+    expect(screen.getByText('Cuenta — Terraza VIP')).toBeInTheDocument();
+    expect(screen.getByText(/Orden #887766/i)).toBeInTheDocument();
+  });
+
+  test('H9 (b) Sesiones de la misma mesa son distinguibles por hora y sesión en ActiveTablesGrid', () => {
+    const tables: TableDTO[] = [
+      {
+        tableId: 'tbl-saloon',
+        tenantId: 't-1',
+        label: 'Mesa Salón',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    const sessions: TableSessionDTO[] = [
+      {
+        sessionId: 'sess-aaa-111111',
+        tenantId: 't-1',
+        tableId: 'tbl-saloon',
+        status: 'active',
+        createdAt: '2026-10-11T12:00:00.000Z',
+        expiresAt: '2026-10-11T14:00:00.000Z',
+      },
+      {
+        sessionId: 'sess-bbb-222222',
+        tenantId: 't-1',
+        tableId: 'tbl-saloon',
+        status: 'active',
+        createdAt: '2026-10-11T15:30:00.000Z',
+        expiresAt: '2026-10-11T17:30:00.000Z',
+      },
+    ];
+
+    render(<ActiveTablesGrid sessions={sessions} tables={tables} />);
+    const tableHeaders = screen.getAllByText('Mesa Salón');
+    expect(tableHeaders).toHaveLength(2);
+
+    expect(screen.getByText(/Sesión #111111/i)).toBeInTheDocument();
+    expect(screen.getByText(/Sesión #222222/i)).toBeInTheDocument();
+  });
+
+  test('H9 (c) Etiquetas de métodos de pago en español (Efectivo, Tarjeta, Otro) en picker y modal', () => {
+    const onSelect = jest.fn();
+    const { rerender } = render(<PaymentMethodPicker selectedMethod="CARD" onSelect={onSelect} />);
+
+    expect(screen.getByRole('radio', { name: 'Efectivo' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Tarjeta' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Otro' })).toBeInTheDocument();
+
+    rerender(
+      <ConfirmPaymentButton
+        total={120}
+        method="CARD"
+        onConfirm={jest.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /registrar cobro/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Tarjeta')).toBeInTheDocument();
+
+    const tables: TableDTO[] = [
+      {
+        tableId: 'tbl-1',
+        tenantId: 't-1',
+        label: 'Mesa Central',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    rerender(<PaymentSuccessCard tableId="tbl-1" amount={120} method="CARD" tables={tables} />);
+    expect(screen.getByText(/Mesa Central • Total: \$120 • Medio: Tarjeta/i)).toBeInTheDocument();
   });
 });

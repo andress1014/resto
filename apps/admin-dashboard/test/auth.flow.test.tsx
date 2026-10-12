@@ -14,6 +14,7 @@ jest.mock('next/navigation', () => ({
     push: mockPush,
     replace: mockReplace,
   }),
+  usePathname: () => '/menu',
 }));
 
 describe('Bloque 2: Auth Admin Real (Tests Rojo)', () => {
@@ -128,6 +129,123 @@ describe('Bloque 2: Auth Admin Real (Tests Rojo)', () => {
     } finally {
       global.fetch = originalFetch;
     }
+  });
+
+  test('Login muestra estado de loading en el botón primario durante el submit', async () => {
+    let resolveFetch: any;
+    const fetchPromise = new Promise((resolve) => {
+      resolveFetch = resolve;
+    });
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(() => fetchPromise) as any;
+
+    try {
+      render(<LoginPage />);
+      const emailInput = screen.getByLabelText(/correo|email/i);
+      const passwordInput = screen.getByLabelText(/contraseña|password/i);
+      const submitBtn = screen.getByRole('button', { name: /iniciar sesión|entrar/i });
+
+      fireEvent.change(emailInput, { target: { value: 'chef@resto.com' } });
+      fireEvent.change(passwordInput, { target: { value: 'Secret123!' } });
+      fireEvent.click(submitBtn);
+
+      // Botón debe estar deshabilitado y mostrar estado de carga
+      expect(submitBtn).toBeDisabled();
+      expect(submitBtn).toHaveTextContent(/iniciando sesión|cargando/i);
+
+      resolveFetch({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        json: async () => ({
+          tokens: { accessToken: 'token', refreshToken: 'refresh' },
+        }),
+      });
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith('/menu');
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('Register muestra error con role="alert" ante conflicto 409', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async () => ({
+      ok: false,
+      status: 409,
+      headers: { get: () => 'application/json' },
+      json: async () => ({ message: 'El restaurante o correo ya está registrado' }),
+    })) as any;
+
+    try {
+      render(<RegisterPage />);
+      fireEvent.change(screen.getByLabelText(/nombre del restaurante|restaurante/i), { target: { value: 'La Trattoria' } });
+      fireEvent.change(screen.getByLabelText(/correo|email/i), { target: { value: 'duplicado@trattoria.com' } });
+      fireEvent.change(screen.getByLabelText(/contraseña|password/i), { target: { value: 'Pass1234' } });
+
+      const submitBtn = screen.getByRole('button', { name: /registrar|crear cuenta/i });
+      fireEvent.click(submitBtn);
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(/registrado|conflicto/i);
+      expect(mockPush).not.toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('Register muestra estado de loading en el botón primario durante el submit', async () => {
+    let resolveFetch: any;
+    const fetchPromise = new Promise((resolve) => {
+      resolveFetch = resolve;
+    });
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(() => fetchPromise) as any;
+
+    try {
+      render(<RegisterPage />);
+      fireEvent.change(screen.getByLabelText(/nombre del restaurante|restaurante/i), { target: { value: 'La Trattoria' } });
+      fireEvent.change(screen.getByLabelText(/correo|email/i), { target: { value: 'admin@trattoria.com' } });
+      fireEvent.change(screen.getByLabelText(/contraseña|password/i), { target: { value: 'Pass1234' } });
+
+      const submitBtn = screen.getByRole('button', { name: /registrar|crear cuenta/i });
+      fireEvent.click(submitBtn);
+
+      expect(submitBtn).toBeDisabled();
+      expect(submitBtn).toHaveTextContent(/creando cuenta|registrando|cargando/i);
+
+      resolveFetch({
+        ok: true,
+        status: 201,
+        headers: { get: () => 'application/json' },
+        json: async () => ({
+          tokens: { accessToken: 'reg-token', refreshToken: 'reg-refresh' },
+        }),
+      });
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith('/menu');
+      });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('LoginPage no contiene colores hexadecimales inline y usa tokens Lima & Tinta', () => {
+    const { container } = render(<LoginPage />);
+    const html = container.innerHTML;
+    // No debe contener valores hex tipo #xxxxxx o #xxx
+    const hexMatches = html.match(/#(?:[0-9a-fA-F]{3}){1,2}\b/g);
+    expect(hexMatches).toBeNull();
+  });
+
+  test('RegisterPage no contiene colores hexadecimales inline y usa tokens Lima & Tinta', () => {
+    const { container } = render(<RegisterPage />);
+    const html = container.innerHTML;
+    const hexMatches = html.match(/#(?:[0-9a-fA-F]{3}){1,2}\b/g);
+    expect(hexMatches).toBeNull();
   });
 
   test('PanelLayout: si no hay token en localStorage, router.replace redirige a /login', async () => {

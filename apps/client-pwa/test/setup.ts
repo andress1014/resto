@@ -1,11 +1,41 @@
 import '@testing-library/jest-dom';
 
+['backgroundColor', 'color', 'background', 'borderColor'].forEach((prop) => {
+  const desc = Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype, prop);
+  if (desc && desc.set) {
+    const origSet = desc.set;
+    const kebab = prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+    Object.defineProperty(CSSStyleDeclaration.prototype, prop, {
+      get: desc.get,
+      set(this: any, val: any) {
+        if (typeof val === 'string' && val.includes('var(')) {
+          if (typeof this._setProperty === 'function') {
+            this._setProperty(kebab, val);
+            return;
+          }
+        }
+        return origSet.call(this, val);
+      },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+});
+
 const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:4000';
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: jest.fn(),
-    replace: jest.fn(),
+    push: jest.fn((url: string) => {
+      if (typeof window !== 'undefined' && window.history) {
+        window.history.pushState({}, '', url);
+      }
+    }),
+    replace: jest.fn((url: string) => {
+      if (typeof window !== 'undefined' && window.history) {
+        window.history.replaceState({}, '', url);
+      }
+    }),
     prefetch: jest.fn(),
     back: jest.fn(),
   }),
@@ -15,10 +45,48 @@ jest.mock('next/navigation', () => ({
 
 const originalFetch = global.fetch;
 
+type MockHandler = (url: string, options: any) => Promise<any> | any;
+let customHandlers: MockHandler[] = [];
+
+function matchHandler(handler: any, url: string, options: any) {
+  if (typeof handler === 'function') {
+    return handler(url, options);
+  }
+  if (handler && handler.resolver && handler.method) {
+    if ((options?.method || 'GET').toUpperCase() !== handler.method.toUpperCase()) {
+      return undefined;
+    }
+    const path = handler.pathOrUrl;
+    const matches = !path || path === '*' || url.includes(path.replace(/^\*/, ''));
+    if (!matches) {
+      return undefined;
+    }
+    const req = {
+      url,
+      method: options?.method || 'GET',
+      headers: options?.headers,
+      json: async () => (options?.body ? JSON.parse(options.body) : {}),
+      text: async () => (options?.body || ''),
+    };
+    return handler.resolver({ request: req });
+  }
+  return undefined;
+}
+
 export const server = {
+  use: (...handlers: any[]) => {
+    customHandlers.unshift(...handlers);
+  },
   listen: () => {
     global.fetch = jest.fn(async (url: any, options: any) => {
       const urlStr = url.toString();
+
+      for (const handler of customHandlers) {
+        const res = await matchHandler(handler, urlStr, options);
+        if (res !== undefined) {
+          return res;
+        }
+      }
       
       if (urlStr.includes('/v1/sessions/open') && options?.method === 'POST') {
         const body = JSON.parse(options.body);
@@ -77,14 +145,19 @@ export const server = {
     });
   },
   resetHandlers: () => {
+    customHandlers = [];
   },
   close: () => {
     global.fetch = originalFetch;
+    customHandlers = [];
   }
 };
 
 beforeAll(() => server.listen());
 afterEach(() => {
   server.resetHandlers();
+  if (typeof window !== 'undefined' && window.history) {
+    window.history.pushState({}, '', '/');
+  }
 });
 afterAll(() => server.close());

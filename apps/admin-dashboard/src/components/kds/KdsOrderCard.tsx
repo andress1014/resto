@@ -1,9 +1,16 @@
 import React from 'react';
-import { BentoCard, KpiValue } from '@packages/ui-components';
-import { OrderDTO, OrderStatus, ORDER_STATUS_TRANSITIONS } from '@packages/shared-types';
+import {
+  BentoCard,
+  KpiValue,
+  ORDER_STATUS_LABELS,
+  formatOrderNumber,
+  getTableDisplayName,
+} from '@packages/ui-components';
+import { OrderDTO, OrderStatus, ORDER_STATUS_TRANSITIONS, TableDTO } from '@packages/shared-types';
 
 export interface KdsOrderCardProps {
   order: OrderDTO;
+  tables?: TableDTO[];
   onAdvanceStatus?: (orderId: string, nextStatus: OrderStatus) => void;
   isUpdating?: boolean;
   alertMinutes?: number;
@@ -11,6 +18,7 @@ export interface KdsOrderCardProps {
 
 export function KdsOrderCard({
   order,
+  tables,
   onAdvanceStatus,
   isUpdating = false,
   alertMinutes = 15,
@@ -25,12 +33,32 @@ export function KdsOrderCard({
   const isOverdue = elapsedMinutes > alertMinutes;
 
   return (
-    <BentoCard className="p-4 flex flex-col justify-between">
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
+    <BentoCard
+      style={{
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        gap: '12px',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h4 className="font-bold text-base text-[var(--bento-text)]">{order.tableId}</h4>
-            <span className="text-xs text-[var(--bento-text-muted)]">Orden #{order.id.slice(-6)}</span>
+            <h4
+              style={{
+                margin: 0,
+                fontWeight: 700,
+                fontSize: '16px',
+                color: 'var(--bento-text)',
+                fontFamily: 'var(--bento-font-heading)',
+              }}
+            >
+              {getTableDisplayName(order.tableId, tables)}
+            </h4>
+            <span style={{ fontSize: '12px', color: 'var(--bento-text-muted)' }}>
+              {formatOrderNumber(order.id)}
+            </span>
           </div>
           <KpiValue
             label="Tiempo"
@@ -39,21 +67,36 @@ export function KdsOrderCard({
           />
         </div>
 
-        <div className="border-t border-[var(--bento-border)] pt-2 space-y-2">
+        <div
+          style={{
+            borderTop: '1px solid var(--bento-border)',
+            paddingTop: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}
+        >
           {order.items.map((item) => (
-            <div key={item.id} className="text-sm">
-              <div className="flex justify-between font-medium">
+            <div key={item.id} style={{ fontSize: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
                 <span>
                   {item.quantity}x {item.productName}
                 </span>
               </div>
               {item.modifiers && item.modifiers.length > 0 && (
-                <div className="text-xs text-[var(--bento-text-muted)] pl-4">
+                <div style={{ fontSize: '12px', color: 'var(--bento-text-muted)', paddingLeft: '16px' }}>
                   {item.modifiers.map((m) => m.optionName).join(', ')}
                 </div>
               )}
               {item.notes && (
-                <div className="text-xs italic text-[var(--bento-text-muted)] pl-4">
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontStyle: 'italic',
+                    color: 'var(--bento-text-muted)',
+                    paddingLeft: '16px',
+                  }}
+                >
                   {item.notes}
                 </div>
               )}
@@ -63,15 +106,33 @@ export function KdsOrderCard({
       </div>
 
       {nextStatus && onAdvanceStatus && (
-        <div className="mt-4 pt-3 border-t border-[var(--bento-border)]">
+        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--bento-border)' }}>
           <button
             type="button"
             aria-busy={isUpdating ? 'true' : 'false'}
             onClick={() => onAdvanceStatus(order.id, nextStatus)}
-            className="w-full py-2 px-3 text-xs font-semibold rounded bg-[var(--bento-accent)] text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
+            style={{
+              width: '100%',
+              minHeight: '40px',
+              padding: '8px 12px',
+              fontSize: '12px',
+              fontWeight: 600,
+              borderRadius: 'var(--bento-pill-radius)',
+              backgroundColor: 'var(--bento-tinta)',
+              color: 'var(--bento-papel)',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontFamily: 'var(--bento-font-body)',
+              transition: 'opacity 0.2s ease',
+              opacity: isUpdating ? 0.7 : 1,
+            }}
           >
             <svg
-              className="w-3.5 h-3.5"
+              style={{ width: '14px', height: '14px' }}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -79,7 +140,7 @@ export function KdsOrderCard({
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
-            Avanzar a {nextStatus}
+            Avanzar a {ORDER_STATUS_LABELS[nextStatus] || nextStatus}
           </button>
         </div>
       )}

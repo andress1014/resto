@@ -283,3 +283,4 @@ describe('Bloque 4: PWA Flujos Reales (Tests Rojo)', () => {
     }
   });
 });
+

@@ -75,6 +75,7 @@ export class ApiClient {
         url !== '/v1/auth/refresh' &&
         ApiClient.refreshToken
       ) {
+        let refreshedTokens: any = null;
         try {
           const refreshRes = await fetch(`${baseUrl}/v1/auth/refresh`, {
             method: 'POST',
@@ -82,16 +83,37 @@ export class ApiClient {
             body: JSON.stringify({ refreshToken: ApiClient.refreshToken }),
           });
           if (refreshRes.status === 200) {
-            const tokens = await refreshRes.json();
-            if (tokens?.accessToken) {
-              ApiClient.token = tokens.accessToken;
-              ApiClient.refreshToken = tokens.refreshToken ?? ApiClient.refreshToken;
-              return ApiClient.request(url, { ...options, _retried: true });
+            const data = await refreshRes.json();
+            const accessToken = data?.accessToken || data?.tokens?.accessToken;
+            const refreshToken = data?.refreshToken ?? data?.tokens?.refreshToken;
+            if (accessToken) {
+              refreshedTokens = { accessToken, refreshToken };
             }
           }
         } catch {
-          // refresh fallido: se propaga el 401 original
+          // Error de red en refresh
         }
+
+        if (refreshedTokens?.accessToken) {
+          ApiClient.token = refreshedTokens.accessToken;
+          if (refreshedTokens.refreshToken) {
+            ApiClient.refreshToken = refreshedTokens.refreshToken;
+          }
+          return ApiClient.request(url, { ...options, _retried: true });
+        }
+
+        ApiClient.clearAuth();
+        if (typeof window !== 'undefined' && window.location) {
+          try {
+            window.location.href = '/login';
+          } catch {
+            // fallback en entornos donde location.href es de sólo lectura
+          }
+        }
+        const sessionExpiredError: any = new Error('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
+        sessionExpiredError.status = 401;
+        sessionExpiredError.code = 'SESSION_EXPIRED';
+        throw sessionExpiredError;
       }
 
       const isJson = res.headers.get('content-type')?.includes('application/json');
